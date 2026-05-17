@@ -150,29 +150,87 @@ Excluídos explicitamente. Documentado para prevenir scope creep.
 
 ## Traceability
 
-Mapeamento requirement → fase. Atualizado durante criação do roadmap.
+Mapeamento requirement → fase. Preenchido durante criação do roadmap em 2026-05-17.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TELE-01 a TELE-07 | Phase 1 | Pending |
-| DETE-01 a DETE-06 | Phase 1 | Pending |
+| TELE-01 | Phase 1 | Pending |
+| TELE-02 | Phase 1 | Pending |
+| TELE-03 | Phase 1 | Pending |
+| TELE-04 | Phase 1 | Pending |
+| TELE-05 | Phase 1 | Pending |
+| TELE-06 | Phase 1 | Pending |
+| TELE-07 | Phase 1 | Pending |
+| DETE-01 | Phase 1 | Pending |
+| DETE-02 | Phase 1 | Pending |
+| DETE-03 | Phase 1 | Pending |
+| DETE-04 | Phase 3 | Pending |
+| DETE-05 | Phase 1 | Pending |
+| DETE-06 | Phase 1 | Pending |
 | DETE-07 | Phase 3 | Pending |
-| DETE-04 (carpet-bombing) | Phase 3 | Pending |
-| MITI-01 a MITI-02 | Phase 2 | Pending |
-| MITI-03 a MITI-04 | Phase 4 | Pending |
-| MITI-05 a MITI-10 | Phase 2 | Pending |
-| SAFE-01 a SAFE-08 | Phase 2 | Pending |
-| ALER-01 a ALER-08 | Phase 1 / Phase 2 | Pending |
-| DASH-01 a DASH-10 | Phase 2 / Phase 3 | Pending |
-| MTEN-01 a MTEN-05 | Phase 3 | Pending |
-| PERS-01 a PERS-04 | Phase 1 | Pending |
-| OPER-01 a OPER-06 | Phase 5 | Pending |
+| MITI-01 | Phase 2 | Pending |
+| MITI-02 | Phase 2 | Pending |
+| MITI-03 | Phase 3 | Pending |
+| MITI-04 | Phase 3 | Pending |
+| MITI-05 | Phase 2 | Pending |
+| MITI-06 | Phase 2 | Pending |
+| MITI-07 | Phase 2 | Pending |
+| MITI-08 | Phase 2 | Pending |
+| MITI-09 | Phase 2 | Pending |
+| MITI-10 | Phase 2 | Pending |
+| SAFE-01 | Phase 2 | Pending |
+| SAFE-02 | Phase 2 | Pending |
+| SAFE-03 | Phase 2 | Pending |
+| SAFE-04 | Phase 2 | Pending |
+| SAFE-05 | Phase 2 | Pending |
+| SAFE-06 | Phase 2 | Pending |
+| SAFE-07 | Phase 2 | Pending |
+| SAFE-08 | Phase 2 | Pending |
+| ALER-01 | Phase 1 | Pending |
+| ALER-02 | Phase 1 | Pending |
+| ALER-03 | Phase 2 | Pending |
+| ALER-04 | Phase 2 | Pending |
+| ALER-05 | Phase 1 | Pending |
+| ALER-06 | Phase 1 | Pending |
+| ALER-07 | Phase 3 | Pending |
+| ALER-08 | Phase 1 | Pending |
+| DASH-01 | Phase 1 | Pending |
+| DASH-02 | Phase 1 | Pending |
+| DASH-03 | Phase 3 | Pending |
+| DASH-04 | Phase 1 | Pending |
+| DASH-05 | Phase 1 | Pending |
+| DASH-06 | Phase 3 | Pending |
+| DASH-07 | Phase 3 | Pending |
+| DASH-08 | Phase 2 | Pending |
+| DASH-09 | Phase 1 | Pending |
+| DASH-10 | Phase 3 | Pending |
+| MTEN-01 | Phase 3 | Pending |
+| MTEN-02 | Phase 3 | Pending |
+| MTEN-03 | Phase 3 | Pending |
+| MTEN-04 | Phase 3 | Pending |
+| MTEN-05 | Phase 3 | Pending |
+| PERS-01 | Phase 1 | Pending |
+| PERS-02 | Phase 2 | Pending |
+| PERS-03 | Phase 1 | Pending |
+| PERS-04 | Phase 1 | Pending |
+| OPER-01 | Phase 4 | Pending |
+| OPER-02 | Phase 4 | Pending |
+| OPER-03 | Phase 4 | Pending |
+| OPER-04 | Phase 4 | Pending |
+| OPER-05 | Phase 4 | Pending |
+| OPER-06 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: ~50 total
-- Mapped to phases: pending (preenchido pelo roadmapper)
-- Unmapped: 0 esperado
+- v1 requirements: **65 total**
+- Mapped to phases: **65 (100%)**
+- Unmapped: **0**
+
+**Per-phase counts:**
+- Phase 1 (Observation Spine): 25 requirements
+- Phase 2 (BGP Mitigation with Safety Rails): 20 requirements
+- Phase 3 (Carpet-Bombing, Flowspec & Operator UX): 14 requirements
+- Phase 4 (Production Packaging): 6 requirements
 
 ---
 *Requirements defined: 2026-05-17*
-*Last updated: 2026-05-17 after initial definition*
+*Last updated: 2026-05-17 after roadmap creation (traceability filled)*
