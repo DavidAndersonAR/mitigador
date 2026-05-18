@@ -24,7 +24,19 @@
   3. Operador abre o dashboard web (login com sessão), vê ataques ativos em tempo real via SSE, e vê quais exporters estão saudáveis (último flow por fonte, taxa de chegada).
   4. Operador consulta histórico de incidentes detectados no PostgreSQL com retenção mínima de 1 ano, mesmo após reiniciar o serviço.
   5. Sistema rejeita flows de IPs de exporter não-cadastrados no inventário (sem inflar contadores com dados de fontes desconhecidas).
-**Plans**: TBD
+**Plans**: 12 plans
+- [ ] 01-01-PLAN.md — Bootstrap Go module + cobra root + directory skeleton + example config/systemd
+- [ ] 01-02-PLAN.md — Postgres pool + embedded migrations (9 tables: sessions/users/exporters/hostgroups/thresholds/alert_channels/whitelist/incidents/attack_updates)
+- [ ] 01-03-PLAN.md — Config loader (viper YAML + env overrides + validator)
+- [ ] 01-04-PLAN.md — `mitigador user create|list|passwd|delete` + `config sync` CLIs (bcrypt cost 12)
+- [ ] 01-05-PLAN.md — Ingest layer: GoFlow2 UDP listeners (NetFlow v9/IPFIX/sFlow) + Inventory + ChannelProducer + HealthTracker
+- [ ] 01-06-PLAN.md — Per-host sharded ring-buffer counters (60s window, /32 only in P1)
+- [ ] 01-07-PLAN.md — Detection engine: AttackEvent + Catalog + Classify + Confidence + state machine + 1Hz tick
+- [ ] 01-08-PLAN.md — incident.Store + Recorder (AttackEvent → Postgres) + orphan close on startup
+- [ ] 01-09-PLAN.md — Alert bus + Telegram sender (30/s + 1/s rate limit + 429 retry) + Email sender (go-mail) + pt-BR templates
+- [ ] 01-10-PLAN.md — HTTP API (chi + scs sessions + CSRF) + SSE broker + read endpoints + static SPA handler
+- [ ] 01-11-PLAN.md — Vue 3 + Naive UI dashboard (6 views: login, dashboard, exporters, BGP stub, incident list/detail) + i18n pt-BR/en-US
+- [ ] 01-12-PLAN.md — `mitigador serve` integration (errgroup + graceful shutdown) + flowgen + E2E test + operator smoke checkpoint
 **UI hint**: yes
 
 ### Phase 2: BGP Mitigation with Safety Rails
@@ -68,7 +80,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Observation Spine | 0/0 | Not started | - |
+| 1. Observation Spine | 0/12 | Planned | - |
 | 2. BGP Mitigation with Safety Rails | 0/0 | Not started | - |
 | 3. Carpet-Bombing, Flowspec & Operator UX | 0/0 | Not started | - |
 | 4. Production Packaging | 0/0 | Not started | - |
