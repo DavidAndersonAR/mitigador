@@ -1,18 +1,18 @@
 # State: Mitigador
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-18
 
 ## Project Reference
 
 **Core value**: Tornar visível e mitigar automaticamente o ataque volumétrico que hoje só é descoberto quando o link já caiu. Se tudo mais falhar, o operador precisa receber o alerta e ver a rota de blackhole/flowspec sendo anunciada antes do cliente reclamar.
 
-**Current focus**: Roadmap definido (4 fases, coarse). Próximo passo: planejar Phase 1 (Observation Spine) — ingestão NetFlow v9/IPFIX/sFlow, detecção UDP/ICMP flood per-host, dashboard read-only via SSE, alertas Telegram/email. **Sem BGP em Phase 1** — visibilidade pura.
+**Current focus**: Phase 1 context capturado (`.planning/phases/01-observation-spine/01-CONTEXT.md`). Próximo passo: `/gsd-plan-phase 1` para decompor em plans executáveis. **Pivô importante registrado**: detection engine é greenfield em Go puro (FastNetMon = referência conceitual apenas, não runtime dep).
 
 ## Current Position
 
-**Phase**: Pre-Phase 1 (roadmap aprovado, aguardando planejamento)
+**Phase**: Phase 1 — Observation Spine (context capturado, aguardando planning)
 **Plan**: None
-**Status**: Roadmap created
+**Status**: Phase 1 CONTEXT.md gravado
 **Progress**: [░░░░░░░░░░] 0/4 phases complete
 
 ## Performance Metrics
@@ -53,20 +53,25 @@
 
 ### Recent Highlights
 
+- **2026-05-18:** Phase 1 CONTEXT.md gravado (`.planning/phases/01-observation-spine/01-CONTEXT.md`). 18 decisões implementacionais capturadas via `/gsd-discuss-phase 1`.
+- **2026-05-18:** **Pivô FastNetMon:** detector é greenfield em Go puro (GoFlow2 embedded como lib). FastNetMon vira referência conceitual, não runtime dep. Implica atualizar PROJECT.md/ROADMAP.md/STACK.md numa próxima sessão de manutenção de planning.
+- **2026-05-18:** DASH-04 (BGP health) em P1 fica como stub vazio até P2 popular; alternativa de mover para P2 documentada como follow-up.
 - **2026-05-17:** Roadmap criado. 4 fases (coarse), 65 v1 requirements 100% mapeados. Phase 1 é observação-only (sem BGP); Phase 2 concentra todo o risco BGP com safety rails completos.
-- **2026-05-17:** Stack decidida em PROJECT.md após research synthesis (Go + FastNetMon + GoBGP + Vue + systemd).
-- **2026-05-17:** Carpet-bombing detection promovida a P1 (não pode ser deferida — é o padrão dominante de ataque).
+- **2026-05-17:** Stack decidida em PROJECT.md após research synthesis (Go + GoBGP + Vue + systemd).
+- **2026-05-17:** Carpet-bombing detection: confirmada como **Phase 3** (DETE-04, DETE-07 mapeados a P3); P1 cobre apenas detecção per-host /32.
 
 ## Session Continuity
 
-**Last session ended at**: Roadmap creation
-**Next session should**: Review ROADMAP.md e ROADMAP coverage map; aprovar (ou ajustar); então rodar `/gsd-plan-phase 1` para decompor Phase 1 (Observation Spine) em plans executáveis.
+**Last session ended at**: Phase 1 context capture (`/gsd-discuss-phase 1`)
+**Next session should**: Rodar `/gsd-plan-phase 1` para decompor Phase 1 em plans executáveis usando `.planning/phases/01-observation-spine/01-CONTEXT.md` como base. Considerar também a sessão de manutenção que atualize PROJECT.md/ROADMAP.md/STACK.md para o pivô greenfield Go (FastNetMon = referência).
 
 **Open files / artifacts in flight**:
-- `.planning/PROJECT.md` (atualizado 2026-05-17)
+- `.planning/phases/01-observation-spine/01-CONTEXT.md` (criado 2026-05-18 — 18 decisões para o planner)
+- `.planning/phases/01-observation-spine/01-DISCUSSION-LOG.md` (audit trail da discussão)
+- `.planning/PROJECT.md` (atualizado 2026-05-17 — trecho sobre FNM como engine está obsoleto, ver CONTEXT)
 - `.planning/REQUIREMENTS.md` (v1 = 65 requirements, traceability atualizada com mapping de fases)
-- `.planning/ROADMAP.md` (criado 2026-05-17, 4 fases coarse)
-- `.planning/research/SUMMARY.md` + STACK.md + FEATURES.md + ARCHITECTURE.md + PITFALLS.md (research completa, HIGH confidence em tech, MEDIUM em normas BR)
+- `.planning/ROADMAP.md` (criado 2026-05-17, 4 fases coarse — menções a FNM como engine obsoletas)
+- `.planning/research/SUMMARY.md` + STACK.md + FEATURES.md + ARCHITECTURE.md + PITFALLS.md (research completa, HIGH confidence em tech, MEDIUM em normas BR — STACK.md sobre FNM obsoleto)
 
 ---
 *State initialized: 2026-05-17 at roadmap creation*
