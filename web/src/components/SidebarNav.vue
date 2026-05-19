@@ -20,6 +20,10 @@ const menuOptions = computed(() => [
     badge: activeAttackCount.value > 0 ? activeAttackCount.value : undefined,
   },
   {
+    label: t('nav.flows'),
+    key: 'flows',
+  },
+  {
     label: t('nav.traffic'),
     key: 'traffic',
   },
@@ -39,6 +43,7 @@ const menuOptions = computed(() => [
 
 const routeMap: Record<string, string> = {
   dashboard: '/',
+  flows: '/flows',
   traffic: '/traffic',
   exporters: '/exporters',
   bgp: '/bgp',

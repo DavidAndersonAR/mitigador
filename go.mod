@@ -12,6 +12,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/netsampler/goflow2/v2 v2.2.6
 	github.com/oklog/ulid/v2 v2.1.1
+	github.com/oschwald/maxminddb-golang v1.13.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/wneessen/go-mail v0.7.3

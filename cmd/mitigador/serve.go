@@ -23,9 +23,11 @@ import (
 	"github.com/mitigador/mitigador/internal/api"
 	"github.com/mitigador/mitigador/internal/config"
 	"github.com/mitigador/mitigador/internal/detect"
+	"github.com/mitigador/mitigador/internal/dns"
 	"github.com/mitigador/mitigador/internal/flow"
 	"github.com/mitigador/mitigador/internal/incident"
 	"github.com/mitigador/mitigador/internal/ingest"
+	"github.com/mitigador/mitigador/internal/netowner"
 	"github.com/mitigador/mitigador/internal/session"
 	pg "github.com/mitigador/mitigador/internal/storage/postgres"
 	"github.com/mitigador/mitigador/internal/user"
@@ -110,6 +112,22 @@ func serve(rootCtx context.Context, configPath string) error {
 	// 10) Aggregate store + producer.
 	store := aggregate.New(runtime.NumCPU())
 	prod := ingest.NewChannelProducer(inv, health, flowChan)
+	recentFlows := flow.NewRecentBuffer(500)
+	dnsResolver := dns.NewResolver()
+
+	// Optional ASN/owner enrichment (GeoLite2-ASN or db-ip ASN-Lite mmdb).
+	var asnDB *netowner.MMDB
+	if p := cfg.GeoIP.ASNPath; p != "" {
+		db, err := netowner.OpenMMDB(p)
+		if err != nil {
+			slog.Warn("geoip: ASN mmdb not loaded — dashboard owner column falls back to CIDR table", "path", p, "err", err)
+		} else {
+			slog.Info("geoip: ASN mmdb loaded", "path", p)
+			asnDB = db
+			defer asnDB.Close()
+		}
+	}
+	netOwnerResolver := netowner.New(asnDB)
 
 	// 11) Detect engine.
 	engine := detect.NewEngine(store, catalog, attackEvents)
@@ -142,15 +160,18 @@ func serve(rootCtx context.Context, configPath string) error {
 	secureCookies := strings.HasPrefix(cfg.HTTP.AppBaseURL, "https://")
 	sm := session.NewManager(pool, secureCookies)
 	apiHandler := api.New(api.Deps{
-		Pool:      pool,
-		SM:        sm,
-		Users:     users,
-		Incidents: incidents,
-		Inventory: inv,
-		Health:    health,
-		SSEBroker: sseBroker,
-		Store:     store,
-		Catalog:   catalog,
+		Pool:        pool,
+		SM:          sm,
+		Users:       users,
+		Incidents:   incidents,
+		Inventory:   inv,
+		Health:      health,
+		SSEBroker:   sseBroker,
+		Store:       store,
+		Catalog:     catalog,
+		RecentFlows: recentFlows,
+		DNS:         dnsResolver,
+		NetOwner:    netOwnerResolver,
 	})
 
 	// 16) HTTP server.
@@ -187,6 +208,7 @@ func serve(rootCtx context.Context, configPath string) error {
 					return nil
 				}
 				store.Update(r.DstIP, r.Received.Unix(), r)
+				recentFlows.Push(r)
 			}
 		}
 	})

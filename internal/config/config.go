@@ -11,6 +11,13 @@ type Config struct {
 	Telegram Telegram `mapstructure:"telegram" validate:"required"`
 	SMTP     SMTP     `mapstructure:"smtp"     validate:"required"`
 	Log      Log      `mapstructure:"log"`
+	GeoIP    GeoIP    `mapstructure:"geoip"`
+}
+
+// GeoIP optionally enriches dashboard rows with AS organization names.
+// Empty ASNPath = feature disabled; the CIDR fallback table still works.
+type GeoIP struct {
+	ASNPath string `mapstructure:"asn_path"`
 }
 
 // Postgres holds DB connection settings.

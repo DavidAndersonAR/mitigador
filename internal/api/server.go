@@ -10,22 +10,28 @@ import (
 
 	"github.com/mitigador/mitigador/internal/aggregate"
 	"github.com/mitigador/mitigador/internal/detect"
+	"github.com/mitigador/mitigador/internal/dns"
+	"github.com/mitigador/mitigador/internal/flow"
 	"github.com/mitigador/mitigador/internal/incident"
 	"github.com/mitigador/mitigador/internal/ingest"
+	"github.com/mitigador/mitigador/internal/netowner"
 	"github.com/mitigador/mitigador/internal/user"
 )
 
 // Deps are the runtime dependencies the API server needs.
 type Deps struct {
-	Pool      *pgxpool.Pool
-	SM        *scs.SessionManager
-	Users     *user.Store
-	Incidents *incident.Store
-	Inventory *ingest.Inventory
-	Health    *ingest.HealthTracker
-	SSEBroker *Broker
-	Store     *aggregate.Store  // per-host counter source for /api/traffic/*
-	Catalog   *detect.Catalog   // longest-prefix-match for hostgroup labels
+	Pool        *pgxpool.Pool
+	SM          *scs.SessionManager
+	Users       *user.Store
+	Incidents   *incident.Store
+	Inventory   *ingest.Inventory
+	Health      *ingest.HealthTracker
+	SSEBroker   *Broker
+	Store       *aggregate.Store   // per-host counter source for /api/traffic/* and /api/dashboard/*
+	Catalog     *detect.Catalog    // longest-prefix-match for hostgroup labels
+	RecentFlows *flow.RecentBuffer // ring buffer of latest flow records for /api/dashboard/recent
+	DNS         *dns.Resolver      // cached PTR resolution for dashboard enrichment
+	NetOwner    *netowner.Resolver // ASN organization lookup (mmdb-backed + CIDR fallback)
 }
 
 // New returns an http.Handler with all routes mounted.
@@ -80,6 +86,8 @@ func New(deps Deps) http.Handler {
 		p.Get("/api/bgp/sessions", handleBGPStub())
 		p.Get("/api/traffic/top20", handleTrafficTop20(deps))
 		p.Get("/api/traffic/host/{ip}", handleTrafficHost(deps))
+		p.Get("/api/dashboard/overview", handleDashboardOverview(deps))
+		p.Get("/api/dashboard/recent", handleDashboardRecent(deps))
 		p.Get("/api/events", deps.SSEBroker.Handler)
 	})
 
