@@ -52,11 +52,11 @@
   6. pt-BR + en-US têm cobertura completa: zero string hardcoded.
   7. Nenhuma persistência nova, nenhuma migration, nenhum SSE topic novo — PERS-03 intacto.
 **Plans**: 5 plans
-- [ ] 01.1-01-PLAN.md — aggregate.Store.Top(now, n) helper + TopEntry struct + unit tests (ordering, empty, dominant proto, tie-break, race)
-- [ ] 01.1-02-PLAN.md — FE foundation: install uplot, register /traffic route, sidebar entry, i18n keys, typed api/traffic.ts wrapper, placeholder view
-- [ ] 01.1-03-PLAN.md — Backend: /api/traffic/top20 + /api/traffic/host/{ip} handlers, extend api.Deps with Store+Catalog, wire serve.go, threat model + tests
-- [ ] 01.1-04-PLAN.md — HostTrafficChart.vue: uPlot stacked-area wrapper (3 series), bps/pps prop, dark theme, destroy on unmount
-- [ ] 01.1-05-PLAN.md — TrafficView.vue: top-20 table + drawer + polling (1s) + visibility pause + mobile breakpoint + operator smoke checkpoint
+- [x] 01.1-01-PLAN.md — aggregate.Store.Top(now, n) helper + TopEntry struct + unit tests (ordering, empty, dominant proto, tie-break, race)
+- [x] 01.1-02-PLAN.md — FE foundation: install uplot, register /traffic route, sidebar entry, i18n keys, typed api/traffic.ts wrapper, placeholder view
+- [x] 01.1-03-PLAN.md — Backend: /api/traffic/top20 + /api/traffic/host/{ip} handlers, extend api.Deps with Store+Catalog, wire serve.go, threat model + tests
+- [x] 01.1-04-PLAN.md — HostTrafficChart.vue: uPlot stacked-area wrapper (3 series), bps/pps prop, dark theme, destroy on unmount
+- [x] 01.1-05-PLAN.md — TrafficView.vue: top-20 table + drawer + polling (1s) + visibility pause + mobile breakpoint + operator smoke checkpoint
 **UI hint**: yes
 
 ### Phase 2: BGP Mitigation with Safety Rails
