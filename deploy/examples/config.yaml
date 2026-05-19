@@ -1,0 +1,57 @@
+# Mitigador configuration example. Copy to /etc/mitigador/config.yaml and edit.
+# Phase 1 — observation only. BGP fields are reserved for Phase 2.
+
+# --- Database ---
+postgres:
+  dsn: "postgres://mitigador:CHANGE_ME@127.0.0.1:5432/mitigador?sslmode=disable"
+  max_conns: 16
+  min_conns: 2
+
+# --- HTTP API + dashboard ---
+http:
+  listen_addr: "0.0.0.0"
+  listen_port: 8080
+  # Session secret: 32+ random bytes, hex- or base64-encoded.
+  # Generate with: openssl rand -hex 32
+  session_secret: "CHANGE_ME_32_RANDOM_BYTES_HEX"
+  # Public URL used in alert links (Telegram + email). No trailing slash.
+  app_base_url: "https://mitigador.example.com"
+
+# --- UDP flow listeners ---
+ingest:
+  netflow:
+    listen_addr: "0.0.0.0"
+    listen_port: 2055
+  ipfix:
+    listen_addr: "0.0.0.0"
+    listen_port: 4739
+  sflow:
+    listen_addr: "0.0.0.0"
+    listen_port: 6343
+  # SO_RCVBUF per socket. Pair with sysctl net.core.rmem_max >= this value.
+  # Required to avoid kernel UDP drops at 1-10 Gbps ISP scale (research §"Pitfall 3").
+  receive_buffer_bytes: 33554432
+
+# --- Telegram alerts ---
+telegram:
+  bot_token: "CHANGE_ME_BOT_TOKEN_FROM_BOTFATHER"
+  # Only chat IDs in this list receive alerts.
+  allowed_chat_ids:
+    - 123456789
+
+# --- SMTP email alerts ---
+smtp:
+  host: "smtp.example.com"
+  port: 587
+  username: "alerts@example.com"
+  password: "CHANGE_ME"
+  # "starttls" | "tls" | "plain"
+  security: "starttls"
+  from_addr: "alerts@example.com"
+  to_addrs:
+    - "ops@example.com"
+
+# --- Logging ---
+log:
+  level: "info"   # debug | info | warn | error
+  format: "json"  # json | text
