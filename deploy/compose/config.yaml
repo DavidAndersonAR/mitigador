@@ -26,7 +26,10 @@ ingest:
 # (MITIGADOR_TELEGRAM_BOT_TOKEN, MITIGADOR_SMTP_*) to enable real delivery.
 telegram:
   bot_token: "0000000000:dev-placeholder-bot-token-replace-via-env"
-  allowed_chat_ids: [0]
+  # Validator requires a non-zero ID; this is a harmless placeholder while
+  # the bot_token above is fake. Override both via MITIGADOR_TELEGRAM_*
+  # env vars to actually deliver alerts.
+  allowed_chat_ids: [1]
 
 smtp:
   host: "localhost"
