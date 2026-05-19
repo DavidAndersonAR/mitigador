@@ -5,6 +5,7 @@ import ExportersView from '@/views/ExportersView.vue';
 import TrafficView from '@/views/TrafficView.vue';
 import FlowsDashboardView from '@/views/FlowsDashboardView.vue';
 import AnalyticsView from '@/views/AnalyticsView.vue';
+import SettingsMikrotikView from '@/views/SettingsMikrotikView.vue';
 import BGPStubView from '@/views/BGPStubView.vue';
 import IncidentListView from '@/views/IncidentListView.vue';
 import IncidentDetailView from '@/views/IncidentDetailView.vue';
@@ -22,6 +23,7 @@ export const router = createRouter({
     { path: '/bgp', name: 'bgp', component: BGPStubView },
     { path: '/incidents', name: 'incidents', component: IncidentListView },
     { path: '/incidents/:id', name: 'incident', component: IncidentDetailView },
+    { path: '/settings/mikrotik', name: 'settings-mikrotik', component: SettingsMikrotikView },
   ],
 });
 

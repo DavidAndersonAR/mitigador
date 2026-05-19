@@ -33,7 +33,8 @@ type Deps struct {
 	RecentFlows *flow.RecentBuffer // ring buffer of latest flow records for /api/dashboard/recent
 	DNS         *dns.Resolver      // cached PTR resolution for dashboard enrichment
 	NetOwner    *netowner.Resolver // ASN organization lookup (mmdb-backed + CIDR fallback)
-	Subscribers *subscriber.Store  // dynamic CGN→subscriber mapping (Mikrotik poller)
+	Subscribers   *subscriber.Store       // dynamic CGN→subscriber mapping (Mikrotik poller)
+	MikrotikStore *subscriber.RouterStore // CRUD storage for the dashboard router-management UI
 }
 
 // New returns an http.Handler with all routes mounted.
@@ -91,6 +92,11 @@ func New(deps Deps) http.Handler {
 		p.Get("/api/dashboard/overview", handleDashboardOverview(deps))
 		p.Get("/api/dashboard/recent", handleDashboardRecent(deps))
 		p.Get("/api/dashboard/analytics", handleDashboardAnalytics(deps))
+		p.Get("/api/mikrotik/routers", handleListMikrotikRouters(deps))
+		p.Post("/api/mikrotik/routers", handleCreateMikrotikRouter(deps))
+		p.Post("/api/mikrotik/routers/test", handleTestMikrotikRouter())
+		p.Patch("/api/mikrotik/routers/{id}", handlePatchMikrotikRouter(deps))
+		p.Delete("/api/mikrotik/routers/{id}", handleDeleteMikrotikRouter(deps))
 		p.Get("/api/events", deps.SSEBroker.Handler)
 	})
 

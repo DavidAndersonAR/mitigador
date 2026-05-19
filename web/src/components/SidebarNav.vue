@@ -43,6 +43,10 @@ const menuOptions = computed(() => [
     label: t('nav.incidents'),
     key: 'incidents',
   },
+  {
+    label: t('nav.settings_mikrotik'),
+    key: 'settings-mikrotik',
+  },
 ]);
 
 const routeMap: Record<string, string> = {
@@ -53,6 +57,7 @@ const routeMap: Record<string, string> = {
   exporters: '/exporters',
   bgp: '/bgp',
   incidents: '/incidents',
+  'settings-mikrotik': '/settings/mikrotik',
 };
 
 async function handleLogout() {

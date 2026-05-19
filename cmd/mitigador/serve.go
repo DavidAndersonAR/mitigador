@@ -142,28 +142,35 @@ func serve(rootCtx context.Context, configPath string) error {
 	}
 	netOwnerResolver := netowner.New(asnDB, countryDB)
 
-	// Optional Mikrotik subscriber poller — resolves CGN-internal IPs back
-	// to PPPoE / DHCP identities so the dashboard can show customer names.
+	// Mikrotik subscriber poller — resolves CGN-internal IPs back to PPPoE /
+	// DHCP identities so the dashboard can show customer names. Source of
+	// truth is now Postgres (managed via the dashboard UI). The YAML
+	// mikrotik.routers list, if present, seeds the DB on first boot only.
 	subscriberStore := subscriber.New()
-	var mtPoller *subscriber.Poller
-	if cfg.Mikrotik.Enabled && len(cfg.Mikrotik.Routers) > 0 {
-		routers := make([]subscriber.RouterConfig, 0, len(cfg.Mikrotik.Routers))
+	mikrotikStore := subscriber.NewRouterStore(pool)
+
+	// One-shot seed from config.yaml when the DB is empty — lets operators
+	// keep the YAML-driven bootstrap path for ansible/terraform setups while
+	// allowing UI edits afterwards.
+	if existing, err := mikrotikStore.List(rootCtx); err == nil && len(existing) == 0 && len(cfg.Mikrotik.Routers) > 0 {
 		for _, r := range cfg.Mikrotik.Routers {
-			routers = append(routers, subscriber.RouterConfig{
-				Name:      r.Name,
-				URL:       r.URL,
-				Username:  r.Username,
-				Password:  r.Password,
-				VerifyTLS: r.VerifyTLS,
-			})
+			if _, serr := mikrotikStore.Create(rootCtx, subscriber.Router{
+				Name: r.Name, URL: r.URL, Username: r.Username, Password: r.Password,
+				VerifyTLS: r.VerifyTLS, Enabled: true,
+			}); serr != nil {
+				slog.Warn("subscriber: seed from config.yaml failed", "router", r.Name, "err", serr.Error())
+			} else {
+				slog.Info("subscriber: seeded router from config.yaml", "router", r.Name)
+			}
 		}
-		interval := time.Duration(cfg.Mikrotik.PollIntervalSec) * time.Second
-		mtPoller = subscriber.NewPoller(subscriber.PollerConfig{
-			Routers:      routers,
-			PollInterval: interval,
-		}, subscriberStore)
-		slog.Info("subscriber: mikrotik poller enabled", "routers", len(routers), "interval_sec", cfg.Mikrotik.PollIntervalSec)
 	}
+
+	interval := time.Duration(cfg.Mikrotik.PollIntervalSec) * time.Second
+	mtPoller := subscriber.NewPoller(subscriber.PollerConfig{
+		Provider:     dbRouterProvider{store: mikrotikStore},
+		PollInterval: interval,
+	}, subscriberStore)
+	slog.Info("subscriber: mikrotik poller enabled (db-backed)", "interval_sec", cfg.Mikrotik.PollIntervalSec)
 
 	// 11) Detect engine.
 	engine := detect.NewEngine(store, catalog, attackEvents)
@@ -205,10 +212,11 @@ func serve(rootCtx context.Context, configPath string) error {
 		SSEBroker:   sseBroker,
 		Store:       store,
 		Catalog:     catalog,
-		RecentFlows: recentFlows,
-		DNS:         dnsResolver,
-		NetOwner:    netOwnerResolver,
-		Subscribers: subscriberStore,
+		RecentFlows:   recentFlows,
+		DNS:           dnsResolver,
+		NetOwner:      netOwnerResolver,
+		Subscribers:   subscriberStore,
+		MikrotikStore: mikrotikStore,
 	})
 
 	// 16) HTTP server.
@@ -228,21 +236,19 @@ func serve(rootCtx context.Context, configPath string) error {
 	// via systemd Restart=on-failure.
 	g, gctx := errgroup.WithContext(ctx)
 
-	// Optional: Mikrotik subscriber poller (PPPoE + DHCP active sessions).
-	if mtPoller != nil {
-		g.Go(func() error {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("subscriber poller: panic recovered", "panic", fmt.Sprintf("%v", r))
-				}
-			}()
-			err := mtPoller.Run(gctx)
-			if err != nil && !errors.Is(err, context.Canceled) {
-				slog.Warn("subscriber poller: exited with error", "err", err.Error())
+	// Mikrotik subscriber poller (PPPoE + DHCP active sessions).
+	g.Go(func() error {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("subscriber poller: panic recovered", "panic", fmt.Sprintf("%v", r))
 			}
-			return nil
-		})
-	}
+		}()
+		err := mtPoller.Run(gctx)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			slog.Warn("subscriber poller: exited with error", "err", err.Error())
+		}
+		return nil
+	})
 
 	// Flow → aggregate writer.
 	// aggregate.Store.Update is concurrency-safe; this goroutine is the single writer.
@@ -419,4 +425,30 @@ func setupLogger(cfg config.Log) {
 		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	}
 	slog.SetDefault(slog.New(handler))
+}
+
+// dbRouterProvider adapts the Postgres-backed RouterStore to the
+// subscriber.RouterProvider interface expected by the poller. The DB is
+// queried on every refresh cycle so dashboard edits take effect on the
+// next tick — no daemon restart needed.
+type dbRouterProvider struct {
+	store *subscriber.RouterStore
+}
+
+func (p dbRouterProvider) Routers(ctx context.Context) ([]subscriber.RouterConfig, error) {
+	rows, err := p.store.ListEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]subscriber.RouterConfig, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, subscriber.RouterConfig{
+			Name:      r.Name,
+			URL:       r.URL,
+			Username:  r.Username,
+			Password:  r.Password,
+			VerifyTLS: r.VerifyTLS,
+		})
+	}
+	return out, nil
 }

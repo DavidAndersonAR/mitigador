@@ -25,9 +25,22 @@ type RouterConfig struct {
 	Timeout   time.Duration // per-request HTTP timeout; defaults to 5s
 }
 
+// RouterProvider returns the routers to poll on each refresh cycle. The
+// implementation can be a static slice (config.yaml fallback) or a live
+// database query — the poller does not care.
+type RouterProvider interface {
+	Routers(ctx context.Context) ([]RouterConfig, error)
+}
+
+// StaticRouters is a tiny RouterProvider that returns the same list every
+// time. Useful for tests and YAML-only setups.
+type StaticRouters []RouterConfig
+
+func (s StaticRouters) Routers(context.Context) ([]RouterConfig, error) { return s, nil }
+
 // PollerConfig holds the dynamic-subscriber poller settings.
 type PollerConfig struct {
-	Routers      []RouterConfig
+	Provider     RouterProvider
 	PollInterval time.Duration // refresh cadence; defaults to 30s if zero
 }
 
@@ -73,7 +86,12 @@ func (p *Poller) Run(ctx context.Context) error {
 func (p *Poller) refresh(ctx context.Context) {
 	next := make(map[netip.Addr]*Subscriber)
 	now := time.Now()
-	for _, r := range p.cfg.Routers {
+	routers, err := p.cfg.Provider.Routers(ctx)
+	if err != nil {
+		slog.Warn("subscriber: provider failed", "err", err.Error())
+		return
+	}
+	for _, r := range routers {
 		if r.Name == "" || r.URL == "" {
 			continue
 		}
@@ -88,7 +106,21 @@ func (p *Poller) refresh(ctx context.Context) {
 		}
 	}
 	p.store.Replace(next)
-	slog.Debug("subscriber: refreshed", "total", len(next))
+	slog.Debug("subscriber: refreshed", "total", len(next), "routers", len(routers))
+}
+
+// TestConnection authenticates against the router and pings a lightweight
+// endpoint (/rest/system/identity). Used by the UI "Test connection"
+// button — returns (identity, nil) on success or a descriptive error.
+func TestConnection(ctx context.Context, r RouterConfig) (string, error) {
+	p := &Poller{client: &http.Client{}}
+	var ident struct {
+		Name string `json:"name"`
+	}
+	if err := p.getJSON(ctx, r, "/rest/system/identity", &ident); err != nil {
+		return "", err
+	}
+	return ident.Name, nil
 }
 
 func (p *Poller) pollRouter(ctx context.Context, r RouterConfig) ([]*Subscriber, error) {
