@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mitigador/mitigador/internal/aggregate"
 	"github.com/mitigador/mitigador/internal/api"
 	"github.com/mitigador/mitigador/internal/detect"
 	"github.com/mitigador/mitigador/internal/ingest"
@@ -31,8 +32,17 @@ func testDSN(t *testing.T) string {
 }
 
 // setupServer creates a test server backed by a real Postgres pool.
-// Returns the server, the pool, and a cleanup function.
+// Returns the server, the pool, and the user store.
+// Delegates to setupServerWithTraffic with nil Store and Catalog.
 func setupServer(t *testing.T) (*httptest.Server, *pgxpool.Pool, *user.Store) {
+	t.Helper()
+	srv, pool, us, _, _ := setupServerWithTraffic(t, nil, nil)
+	return srv, pool, us
+}
+
+// setupServerWithTraffic lets a test inject the aggregate.Store and detect.Catalog.
+// Pass nil for either to use the zero defaults (an empty store / no catalog).
+func setupServerWithTraffic(t *testing.T, store *aggregate.Store, catalog *detect.Catalog) (*httptest.Server, *pgxpool.Pool, *user.Store, *aggregate.Store, *detect.Catalog) {
 	t.Helper()
 	dsn := testDSN(t)
 
@@ -53,7 +63,11 @@ func setupServer(t *testing.T) (*httptest.Server, *pgxpool.Pool, *user.Store) {
 	sseChan := make(chan detect.AttackEvent, 16)
 	broker := api.NewBroker(sseChan)
 
-	deps := api.Deps{
+	if store == nil {
+		store = aggregate.New(1)
+	}
+
+	handler := api.New(api.Deps{
 		Pool:      pool,
 		SM:        sm,
 		Users:     userStore,
@@ -61,8 +75,9 @@ func setupServer(t *testing.T) (*httptest.Server, *pgxpool.Pool, *user.Store) {
 		Inventory: inv,
 		Health:    health,
 		SSEBroker: broker,
-	}
-	handler := api.New(deps)
+		Store:     store,
+		Catalog:   catalog,
+	})
 	srv := httptest.NewServer(handler)
 
 	t.Cleanup(func() {
@@ -70,7 +85,7 @@ func setupServer(t *testing.T) (*httptest.Server, *pgxpool.Pool, *user.Store) {
 		pool.Close()
 	})
 
-	return srv, pool, userStore
+	return srv, pool, userStore, store, catalog
 }
 
 // createTestUser creates a user in the DB and returns username/password.
