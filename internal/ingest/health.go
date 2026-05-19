@@ -51,7 +51,10 @@ func NewHealthTracker() *HealthTracker {
 }
 
 // Observe records one flow arrival from the given exporter at `now`.
+// Normalizes IPv4-mapped IPv6 to plain IPv4 so the per-exporter state survives
+// dual-stack listener address representation differences.
 func (h *HealthTracker) Observe(exporter netip.Addr, now time.Time) {
+	exporter = exporter.Unmap()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

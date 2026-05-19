@@ -69,6 +69,9 @@ func (i *Inventory) Reload(ctx context.Context, pool *pgxpool.Pool) error {
 			slog.Warn("inventory: skip exporter with invalid source_ip", "raw", ipText, "err", err.Error())
 			continue
 		}
+		// Normalize IPv4-mapped IPv6 to plain IPv4 so Lookup hits regardless
+		// of whether the inbound socket reports v4-mapped form.
+		addr = addr.Unmap()
 		m[addr] = &Exporter{
 			ID:                 id,
 			SourceIP:           addr,
@@ -99,7 +102,11 @@ func stripCIDR(s string) string {
 }
 
 // Lookup returns the Exporter for a source IP (true) or (nil, false) if unknown.
+// The incoming address is normalized via Unmap so a dual-stack UDP listener
+// (which surfaces IPv4 peers as IPv4-mapped IPv6 — ::ffff:1.2.3.4) matches
+// the canonical IPv4 keys stored from the YAML inventory.
 func (i *Inventory) Lookup(ip netip.Addr) (*Exporter, bool) {
+	ip = ip.Unmap()
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	e, ok := i.byIP[ip]
@@ -107,7 +114,10 @@ func (i *Inventory) Lookup(ip netip.Addr) (*Exporter, bool) {
 }
 
 // LogUnknown records a rate-limited (1/min per offending IP) warn log for an unknown exporter.
+// Like Lookup, normalizes IPv4-mapped IPv6 to IPv4 so the rate-limiter key matches
+// across socket address representations.
 func (i *Inventory) LogUnknown(ip netip.Addr) {
+	ip = ip.Unmap()
 	i.mu.Lock()
 	lim, ok := i.unknownLim[ip]
 	if !ok {
