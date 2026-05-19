@@ -1,0 +1,28 @@
+postgres:
+  dsn: "postgres://test:test@127.0.0.1:5432/mitigador_test?sslmode=disable"
+  max_conns: 16
+  min_conns: 2
+http:
+  listen_addr: "0.0.0.0"
+  listen_port: 8080
+  session_secret: "0123456789abcdef0123456789abcdef"
+  app_base_url: "https://mitigador.example.com"
+ingest:
+  netflow: { listen_addr: "0.0.0.0", listen_port: 2055 }
+  ipfix:   { listen_addr: "0.0.0.0", listen_port: 4739 }
+  sflow:   { listen_addr: "0.0.0.0", listen_port: 6343 }
+  receive_buffer_bytes: 33554432
+telegram:
+  bot_token: "1234567890:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
+  allowed_chat_ids: [123456789]
+smtp:
+  host: "smtp.example.com"
+  port: 587
+  username: "alerts@example.com"
+  password: "test-password"
+  security: "starttls"
+  from_addr: "alerts@example.com"
+  to_addrs: ["ops@example.com"]
+log:
+  level: "info"
+  format: "json"
