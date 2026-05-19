@@ -1,39 +1,40 @@
 package subscriber
 
 import (
+	"bufio"
 	"context"
-	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
+	"net"
 	"net/netip"
-	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
-// RouterConfig describes one Mikrotik device to poll.
+// RouterConfig describes one Mikrotik device to poll over SSH.
+//
+// URL field is reused as host[:port] for backwards compatibility with the
+// existing DB schema. Any leading scheme (`ssh://`, `https://`, `http://`)
+// is stripped; missing port defaults to 22.
 type RouterConfig struct {
-	Name      string        // friendly name surfaced on subscriber chips
-	URL       string        // base URL, e.g. https://10.0.0.1
-	Username  string        // REST API user (admin or read-only)
-	Password  string        // REST API password
-	VerifyTLS bool          // false = accept self-signed certs (Mikrotik default)
-	Timeout   time.Duration // per-request HTTP timeout; defaults to 5s
+	Name      string
+	URL       string        // host or host:port (any scheme prefix is stripped)
+	Username  string        // SSH user (on Mikrotik: the same admin/api user)
+	Password  string        // SSH password
+	VerifyTLS bool          // ignored on SSH transport; retained for schema compat
+	Timeout   time.Duration // per-request timeout; defaults to 5s
 }
 
-// RouterProvider returns the routers to poll on each refresh cycle. The
-// implementation can be a static slice (config.yaml fallback) or a live
-// database query — the poller does not care.
+// RouterProvider returns the routers to poll on each refresh cycle.
 type RouterProvider interface {
 	Routers(ctx context.Context) ([]RouterConfig, error)
 }
 
-// StaticRouters is a tiny RouterProvider that returns the same list every
-// time. Useful for tests and YAML-only setups.
+// StaticRouters is a tiny RouterProvider that returns the same list every time.
 type StaticRouters []RouterConfig
 
 func (s StaticRouters) Routers(context.Context) ([]RouterConfig, error) { return s, nil }
@@ -47,26 +48,21 @@ type PollerConfig struct {
 // Poller refreshes the Store with active PPPoE + DHCP sessions from
 // every configured router.
 type Poller struct {
-	cfg    PollerConfig
-	store  *Store
-	client *http.Client
+	cfg   PollerConfig
+	store *Store
 }
 
-// NewPoller builds a poller. The HTTP client is shared across routers; each
-// request still respects the per-router timeout / TLS verification setting.
+// NewPoller builds a poller.
 func NewPoller(cfg PollerConfig, store *Store) *Poller {
-	return &Poller{cfg: cfg, store: store, client: &http.Client{}}
+	return &Poller{cfg: cfg, store: store}
 }
 
-// Run polls every PollInterval until ctx is cancelled. Returns ctx.Err() on
-// shutdown so it composes cleanly inside an errgroup.
+// Run polls every PollInterval until ctx is cancelled.
 func (p *Poller) Run(ctx context.Context) error {
 	interval := p.cfg.PollInterval
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
-	// Initial refresh before the first tick so the dashboard does not stay
-	// empty for `interval` seconds after startup.
 	p.refresh(ctx)
 	t := time.NewTicker(interval)
 	defer t.Stop()
@@ -80,9 +76,6 @@ func (p *Poller) Run(ctx context.Context) error {
 	}
 }
 
-// refresh hits every router once and atomically replaces the store snapshot
-// with the union of results. A router failure does not invalidate entries
-// learned from another router in the same cycle.
 func (p *Poller) refresh(ctx context.Context) {
 	next := make(map[netip.Addr]*Subscriber)
 	now := time.Now()
@@ -109,177 +102,247 @@ func (p *Poller) refresh(ctx context.Context) {
 	slog.Debug("subscriber: refreshed", "total", len(next), "routers", len(routers))
 }
 
-// TestConnection authenticates against the router and pings a lightweight
-// endpoint (/rest/system/identity). Used by the UI "Test connection"
-// button — returns (identity, nil) on success or a descriptive error.
+// TestConnection authenticates and runs `/system identity print` so the UI
+// can probe credentials before saving them.
 func TestConnection(ctx context.Context, r RouterConfig) (string, error) {
-	p := &Poller{client: &http.Client{}}
-	var ident struct {
-		Name string `json:"name"`
-	}
-	if err := p.getJSON(ctx, r, "/rest/system/identity", &ident); err != nil {
+	out, err := runSSH(ctx, r, "/system identity print")
+	if err != nil {
 		return "", err
 	}
-	return ident.Name, nil
+	// Output format: "                name: <NAME>\n"
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "name:") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "name:")), nil
+		}
+	}
+	return "router-reachable", nil
 }
 
 func (p *Poller) pollRouter(ctx context.Context, r RouterConfig) ([]*Subscriber, error) {
 	var out []*Subscriber
 	if subs, err := p.fetchPPPoE(ctx, r); err == nil {
 		out = append(out, subs...)
-	} else if !isNotFound(err) {
-		// Surface non-404 errors (auth/network/etc.). 404 just means the
-		// router does not run PPP — fall through to DHCP without warning.
-		return nil, fmt.Errorf("pppoe: %w", err)
+	} else if !isNotSupported(err) {
+		return nil, fmt.Errorf("ppp: %w", err)
 	}
 	if subs, err := p.fetchDHCPLeases(ctx, r); err == nil {
 		out = append(out, subs...)
-	} else if !isNotFound(err) {
+	} else if !isNotSupported(err) {
 		return out, fmt.Errorf("dhcp: %w", err)
 	}
 	return out, nil
 }
 
-// ppp/active entry shape from the Mikrotik REST API.
-type pppActive struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Service   string `json:"service"`
-	Address   string `json:"address"`
-	CallerID  string `json:"caller-id"`
-	Encoding  string `json:"encoding"`
-	Comment   string `json:"comment"`
-	Uptime    string `json:"uptime"`
-}
-
 func (p *Poller) fetchPPPoE(ctx context.Context, r RouterConfig) ([]*Subscriber, error) {
-	var rows []pppActive
-	if err := p.getJSON(ctx, r, "/rest/ppp/active", &rows); err != nil {
+	out, err := runSSH(ctx, r, "/ppp active print as-value")
+	if err != nil {
 		return nil, err
 	}
-	out := make([]*Subscriber, 0, len(rows))
 	now := time.Now()
-	for _, row := range rows {
-		ip, err := netip.ParseAddr(strings.TrimSpace(row.Address))
+	var subs []*Subscriber
+	for _, rec := range parseAsValue(out) {
+		addr := rec["address"]
+		if addr == "" {
+			continue
+		}
+		ip, err := netip.ParseAddr(strings.TrimSpace(addr))
 		if err != nil || !ip.IsValid() {
 			continue
 		}
-		ip = ip.Unmap()
-		out = append(out, &Subscriber{
-			IP:             ip,
-			Username:       row.Name,
-			Service:        "pppoe",
+		subs = append(subs, &Subscriber{
+			IP:             ip.Unmap(),
+			Username:       firstNonEmpty(rec["name"], rec["user"]),
+			Service:        firstNonEmpty(rec["service"], "pppoe"),
 			Router:         r.Name,
-			Comment:        firstNonEmpty(row.Comment, row.CallerID),
-			ConnectedSince: subtractUptime(now, row.Uptime),
+			Comment:        firstNonEmpty(rec["comment"], rec["caller-id"]),
+			ConnectedSince: subtractUptime(now, rec["uptime"]),
 		})
 	}
-	return out, nil
-}
-
-// ip/dhcp-server/lease entry shape (only the fields we use).
-type dhcpLease struct {
-	ID         string `json:"id"`
-	Address    string `json:"address"`
-	Status     string `json:"status"`
-	HostName   string `json:"host-name"`
-	MACAddress string `json:"mac-address"`
-	Server     string `json:"server"`
-	Comment    string `json:"comment"`
+	return subs, nil
 }
 
 func (p *Poller) fetchDHCPLeases(ctx context.Context, r RouterConfig) ([]*Subscriber, error) {
-	var rows []dhcpLease
-	if err := p.getJSON(ctx, r, "/rest/ip/dhcp-server/lease", &rows); err != nil {
+	out, err := runSSH(ctx, r, "/ip dhcp-server lease print where status=bound as-value")
+	if err != nil {
 		return nil, err
 	}
-	out := make([]*Subscriber, 0, len(rows))
-	for _, row := range rows {
-		// Only consider bound (= currently in-use) leases. Mikrotik also
-		// shows "waiting", "offered", and historic leases via this endpoint.
-		if row.Status != "bound" {
+	var subs []*Subscriber
+	for _, rec := range parseAsValue(out) {
+		addr := rec["address"]
+		if addr == "" {
 			continue
 		}
-		ip, err := netip.ParseAddr(strings.TrimSpace(row.Address))
+		ip, err := netip.ParseAddr(strings.TrimSpace(addr))
 		if err != nil || !ip.IsValid() {
 			continue
 		}
-		ip = ip.Unmap()
-		name := firstNonEmpty(row.HostName, row.MACAddress)
-		out = append(out, &Subscriber{
-			IP:       ip,
+		name := firstNonEmpty(rec["host-name"], rec["mac-address"])
+		subs = append(subs, &Subscriber{
+			IP:       ip.Unmap(),
 			Username: name,
 			Service:  "dhcp",
 			Router:   r.Name,
-			Comment:  firstNonEmpty(row.Comment, row.MACAddress),
+			Comment:  firstNonEmpty(rec["comment"], rec["mac-address"]),
 		})
 	}
-	return out, nil
+	return subs, nil
 }
 
-func (p *Poller) getJSON(ctx context.Context, r RouterConfig, path string, dst any) error {
-	u, err := joinURL(r.URL, path)
-	if err != nil {
-		return fmt.Errorf("invalid url: %w", err)
+// ─── SSH transport ──────────────────────────────────────────────────────
+
+// runSSH connects, runs a single Mikrotik CLI command, and returns the
+// combined stdout output.
+func runSSH(ctx context.Context, r RouterConfig, cmd string) (string, error) {
+	addr := normalizeHost(r.URL)
+	if addr == "" {
+		return "", errors.New("ssh: empty host")
 	}
 	timeout := r.Timeout
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	rctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(rctx, http.MethodGet, u, nil)
-	if err != nil {
-		return err
-	}
-	req.SetBasicAuth(r.Username, r.Password)
-	req.Header.Set("Accept", "application/json")
 
-	// Per-router TLS settings — build a one-shot transport when verify is off.
-	client := p.client
-	if !r.VerifyTLS {
-		client = &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-			},
+	cfg := &ssh.ClientConfig{
+		User:            r.Username,
+		Auth:            []ssh.AuthMethod{ssh.Password(r.Password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		Timeout:         timeout,
+	}
+
+	type dialResult struct {
+		client *ssh.Client
+		err    error
+	}
+	done := make(chan dialResult, 1)
+	go func() {
+		c, e := ssh.Dial("tcp", addr, cfg)
+		done <- dialResult{client: c, err: e}
+	}()
+
+	var client *ssh.Client
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case res := <-done:
+		if res.err != nil {
+			return "", fmt.Errorf("ssh dial %s: %w", addr, res.err)
+		}
+		client = res.client
+	}
+	defer client.Close()
+
+	sess, err := client.NewSession()
+	if err != nil {
+		return "", fmt.Errorf("ssh session: %w", err)
+	}
+	defer sess.Close()
+
+	// Use CombinedOutput with our own timeout enforcement — most Mikrotik
+	// CLI commands return in <1s, so 5s is generous.
+	type outResult struct {
+		out []byte
+		err error
+	}
+	oc := make(chan outResult, 1)
+	go func() {
+		b, e := sess.CombinedOutput(cmd)
+		oc <- outResult{out: b, err: e}
+	}()
+
+	select {
+	case <-ctx.Done():
+		_ = sess.Close()
+		return "", ctx.Err()
+	case res := <-oc:
+		if res.err != nil {
+			// Distinguish "command not supported" so callers can degrade.
+			snippet := string(res.out)
+			if strings.Contains(snippet, "no such command") || strings.Contains(snippet, "expected end of command") {
+				return "", errNotSupported
+			}
+			return "", fmt.Errorf("ssh exec: %w (stderr=%s)", res.err, strings.TrimSpace(snippet))
+		}
+		return string(res.out), nil
+	}
+}
+
+// normalizeHost accepts any of:
+//
+//	"45.6.188.40"            → "45.6.188.40:22"
+//	"45.6.188.40:2222"       → "45.6.188.40:2222"
+//	"https://45.6.188.40"    → "45.6.188.40:22"
+//	"ssh://router.local:22"  → "router.local:22"
+func normalizeHost(s string) string {
+	s = strings.TrimSpace(s)
+	for _, scheme := range []string{"ssh://", "https://", "http://"} {
+		s = strings.TrimPrefix(s, scheme)
+	}
+	s = strings.TrimRight(s, "/")
+	if s == "" {
+		return ""
+	}
+	if _, _, err := net.SplitHostPort(s); err != nil {
+		s = net.JoinHostPort(s, "22")
+	}
+	return s
+}
+
+// ─── as-value parsing ───────────────────────────────────────────────────
+
+// parseAsValue parses Mikrotik's `... as-value` output:
+//
+//	.id=*1;name=joao;service=pppoe;address=100.64.17.10
+//	.id=*2;name=maria;service=pppoe;address=100.64.17.11
+//
+// Some RouterOS versions emit one entry per line, others put them all on
+// one line separated by `;;;`. We handle both by splitting on newline AND
+// the triple-semicolon marker.
+func parseAsValue(s string) []map[string]string {
+	var out []map[string]string
+	// Triple semicolon = record separator in some versions.
+	for _, chunk := range strings.Split(s, ";;;") {
+		scanner := bufio.NewScanner(strings.NewReader(chunk))
+		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			rec := parseAsValueLine(line)
+			if len(rec) > 0 {
+				out = append(out, rec)
+			}
 		}
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return errNotFound
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("unauthorized — check username/password for router %q", r.Name)
-	}
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-	if err := json.NewDecoder(resp.Body).Decode(dst); err != nil {
-		return fmt.Errorf("decode json: %w", err)
-	}
-	return nil
+	return out
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────
-
-var errNotFound = errors.New("endpoint not present on this router")
-
-func isNotFound(err error) bool { return errors.Is(err, errNotFound) }
-
-func joinURL(base, path string) (string, error) {
-	u, err := url.Parse(base)
-	if err != nil {
-		return "", err
+// parseAsValueLine splits one "k=v;k=v" line into a map.
+func parseAsValueLine(line string) map[string]string {
+	rec := map[string]string{}
+	for _, kv := range strings.Split(line, ";") {
+		kv = strings.TrimSpace(kv)
+		if kv == "" {
+			continue
+		}
+		eq := strings.Index(kv, "=")
+		if eq <= 0 {
+			continue
+		}
+		k := strings.TrimSpace(kv[:eq])
+		v := strings.TrimSpace(kv[eq+1:])
+		v = strings.Trim(v, `"`)
+		rec[k] = v
 	}
-	u.Path = strings.TrimRight(u.Path, "/") + path
-	return u.String(), nil
+	return rec
 }
+
+// ─── helpers ────────────────────────────────────────────────────────────
+
+var errNotSupported = errors.New("command not supported on this router")
+
+func isNotSupported(err error) bool { return errors.Is(err, errNotSupported) }
 
 func firstNonEmpty(a, b string) string {
 	a = strings.TrimSpace(a)
@@ -290,8 +353,7 @@ func firstNonEmpty(a, b string) string {
 }
 
 // subtractUptime parses Mikrotik's "1w2d3h4m5s" format and returns the
-// approximate connection-start time. Best-effort — returns zero on parse
-// failure (the dashboard treats zero as "unknown").
+// approximate connection-start time.
 func subtractUptime(now time.Time, uptime string) time.Time {
 	if uptime == "" {
 		return time.Time{}
@@ -326,3 +388,6 @@ func subtractUptime(now time.Time, uptime string) time.Time {
 	}
 	return now.Add(-d)
 }
+
+// Compile-time guard: keep io import path for future use of io.Reader.
+var _ = io.EOF

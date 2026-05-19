@@ -182,7 +182,7 @@
   "settings_mikrotik.modal.create_title": "New Mikrotik router",
   "settings_mikrotik.modal.edit_title": "Edit router",
   "settings_mikrotik.form.name": "Name (used in chips)",
-  "settings_mikrotik.form.url": "REST API URL",
+  "settings_mikrotik.form.url": "SSH host (IP or host:port — default 22)",
   "settings_mikrotik.form.username": "Username",
   "settings_mikrotik.form.password": "Password",
   "settings_mikrotik.form.password_optional": "Password (leave blank to keep current)",

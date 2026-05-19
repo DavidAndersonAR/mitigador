@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-  NCard, NButton, NSpace, NTag, NModal, NForm, NFormItem, NInput, NSwitch,
+  NCard, NButton, NSpace, NModal, NForm, NFormItem, NInput, NSwitch,
   NAlert, NEmpty, NSpin, NPopconfirm, useMessage,
 } from 'naive-ui';
 import AppLayout from '@/components/AppLayout.vue';
@@ -200,7 +200,6 @@ onMounted(load);
               <th>{{ t('settings_mikrotik.col.name') }}</th>
               <th>{{ t('settings_mikrotik.col.url') }}</th>
               <th>{{ t('settings_mikrotik.col.username') }}</th>
-              <th>{{ t('settings_mikrotik.col.tls') }}</th>
               <th>{{ t('settings_mikrotik.col.actions') }}</th>
             </tr>
           </thead>
@@ -212,11 +211,6 @@ onMounted(load);
               <td class="name-cell">{{ r.name }}</td>
               <td class="mono">{{ r.url }}</td>
               <td class="mono">{{ r.username }}</td>
-              <td>
-                <NTag :type="r.verify_tls ? 'success' : 'warning'" size="small" :bordered="false">
-                  {{ r.verify_tls ? t('settings_mikrotik.tls.verify') : t('settings_mikrotik.tls.skip') }}
-                </NTag>
-              </td>
               <td>
                 <NSpace size="small">
                   <NButton size="small" @click="openEdit(r)">{{ t('settings_mikrotik.edit') }}</NButton>
@@ -244,7 +238,7 @@ onMounted(load);
             <NInput v-model:value="form.name" placeholder="BR1" />
           </NFormItem>
           <NFormItem :label="t('settings_mikrotik.form.url')">
-            <NInput v-model:value="form.url" placeholder="https://10.100.70.1" />
+            <NInput v-model:value="form.url" placeholder="10.100.70.1 (porta padrão 22)" />
           </NFormItem>
           <NFormItem :label="t('settings_mikrotik.form.username')">
             <NInput v-model:value="form.username" placeholder="mitigador-readonly" />
@@ -256,12 +250,6 @@ onMounted(load);
               show-password-on="click"
               :placeholder="isEditing ? t('settings_mikrotik.form.password_keep_hint') : ''"
             />
-          </NFormItem>
-          <NFormItem>
-            <NSpace>
-              <NSwitch v-model:value="form.verify_tls" />
-              <span>{{ t('settings_mikrotik.form.verify_tls') }}</span>
-            </NSpace>
           </NFormItem>
           <NFormItem>
             <NSpace>
