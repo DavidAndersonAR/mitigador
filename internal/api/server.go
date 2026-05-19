@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/mitigador/mitigador/internal/aggregate"
+	"github.com/mitigador/mitigador/internal/detect"
 	"github.com/mitigador/mitigador/internal/incident"
 	"github.com/mitigador/mitigador/internal/ingest"
 	"github.com/mitigador/mitigador/internal/user"
@@ -22,6 +24,8 @@ type Deps struct {
 	Inventory *ingest.Inventory
 	Health    *ingest.HealthTracker
 	SSEBroker *Broker
+	Store     *aggregate.Store  // per-host counter source for /api/traffic/*
+	Catalog   *detect.Catalog   // longest-prefix-match for hostgroup labels
 }
 
 // New returns an http.Handler with all routes mounted.
@@ -39,6 +43,8 @@ type Deps struct {
 //	  GET  /api/incidents/{id}
 //	  GET  /api/exporters
 //	  GET  /api/bgp/sessions
+//	  GET  /api/traffic/top20
+//	  GET  /api/traffic/host/{ip}
 //	  GET  /api/events  (SSE)
 //
 //	Static SPA catch-all (LAST, after all /api/* routes):
@@ -72,6 +78,8 @@ func New(deps Deps) http.Handler {
 		p.Get("/api/incidents/{id}", handleGetIncident(deps.Incidents))
 		p.Get("/api/exporters", handleListExporters(deps.Inventory, deps.Health))
 		p.Get("/api/bgp/sessions", handleBGPStub())
+		p.Get("/api/traffic/top20", handleTrafficTop20(deps))
+		p.Get("/api/traffic/host/{ip}", handleTrafficHost(deps))
 		p.Get("/api/events", deps.SSEBroker.Handler)
 	})
 

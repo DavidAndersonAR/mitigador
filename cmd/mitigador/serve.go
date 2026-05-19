@@ -149,6 +149,8 @@ func serve(rootCtx context.Context, configPath string) error {
 		Inventory: inv,
 		Health:    health,
 		SSEBroker: sseBroker,
+		Store:     store,
+		Catalog:   catalog,
 	})
 
 	// 16) HTTP server.
