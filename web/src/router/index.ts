@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '@/views/LoginView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import ExportersView from '@/views/ExportersView.vue';
+import TrafficView from '@/views/TrafficView.vue';
 import BGPStubView from '@/views/BGPStubView.vue';
 import IncidentListView from '@/views/IncidentListView.vue';
 import IncidentDetailView from '@/views/IncidentDetailView.vue';
@@ -12,6 +13,7 @@ export const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/', name: 'dashboard', component: DashboardView },
+    { path: '/traffic', name: 'traffic', component: TrafficView },
     { path: '/exporters', name: 'exporters', component: ExportersView },
     { path: '/bgp', name: 'bgp', component: BGPStubView },
     { path: '/incidents', name: 'incidents', component: IncidentListView },
