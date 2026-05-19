@@ -1,0 +1,11 @@
+/mitigador
+/mitigador.exe
+/dist/
+/coverage.out
+/coverage.html
+/web/node_modules/
+/web/dist/
+/web/.vite/
+*.test
+.env
+.env.local
