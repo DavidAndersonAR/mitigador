@@ -1,0 +1,53 @@
+# Keep the build context small and reproducible.
+
+# Build outputs (regenerated inside the build stages)
+/mitigador
+/mitigador.exe
+/flowgen
+/dist/
+/coverage.out
+/coverage.html
+
+# Frontend artifacts (rebuilt by the web-builder stage)
+/web/node_modules/
+/web/dist/
+/web/.vite/
+# Internal embed dir is rebuilt from /web — drop the host-side copy.
+/internal/api/web_dist/
+
+# Go test cache
+*.test
+
+# Local dev state
+.env
+.env.local
+*.local
+/tmp/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+
+# CI / docs that the image does not need
+.github/
+.golangci.yml
+
+# Tooling state
+.claude/
+.planning/
+.cursor/
+.agents/
+
+# Local GeoIP downloads — fetched by the geoip-init compose service or
+# mounted from /etc/mitigador/geoip in production.
+/geoip/
+*.mmdb

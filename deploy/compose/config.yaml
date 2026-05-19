@@ -1,0 +1,48 @@
+# Mitigador config for the Docker Compose lab environment.
+# Operator overrides go through MITIGADOR_* env vars in compose.yml — see the
+# "environment:" block of the mitigador service.
+
+postgres:
+  dsn: "postgres://mitigador:mitigador@postgres:5432/mitigador?sslmode=disable"
+  max_conns: 16
+  min_conns: 2
+
+http:
+  listen_addr: "0.0.0.0"
+  listen_port: 8080
+  # Replace before exposing to anything beyond a developer laptop.
+  session_secret: "compose-lab-secret-replace-me-with-32-bytes-of-entropy"
+  app_base_url: "http://localhost:8080"
+
+ingest:
+  netflow: { listen_addr: "0.0.0.0", listen_port: 2055 }
+  ipfix:   { listen_addr: "0.0.0.0", listen_port: 4739 }
+  sflow:   { listen_addr: "0.0.0.0", listen_port: 6343 }
+  # 32 MiB SO_RCVBUF per socket. Pair with net.core.rmem_max on the host.
+  receive_buffer_bytes: 33554432
+
+# Telegram/SMTP are wired with placeholder values so the daemon boots; the
+# alert paths return errors but do not crash the service. Override via env
+# (MITIGADOR_TELEGRAM_BOT_TOKEN, MITIGADOR_SMTP_*) to enable real delivery.
+telegram:
+  bot_token: "0000000000:dev-placeholder-bot-token-replace-via-env"
+  allowed_chat_ids: [0]
+
+smtp:
+  host: "localhost"
+  port: 25
+  username: "dev"
+  password: "dev"
+  security: "plain"
+  from_addr: "alerts@mitigador.local"
+  to_addrs: ["ops@mitigador.local"]
+
+log:
+  level: "info"
+  format: "json"
+
+# Optional ASN/owner enrichment for the /flows dashboard.
+# Drop a GeoLite2-ASN or db-ip ASN-Lite .mmdb at the path below — the
+# geoip-init service in compose.yml will fetch a free copy if missing.
+geoip:
+  asn_path: "/etc/mitigador/geoip/asn.mmdb"

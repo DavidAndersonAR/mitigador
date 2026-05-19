@@ -1,11 +1,54 @@
+# ─── Build artifacts ────────────────────────────────────────────────────
 /mitigador
 /mitigador.exe
+/flowgen
+/flowgen.exe
 /dist/
-/coverage.out
-/coverage.html
+/build/
+*.test
+*.out
+coverage.out
+coverage.html
+coverage/
+
+# ─── Frontend (web/) ────────────────────────────────────────────────────
 /web/node_modules/
 /web/dist/
 /web/.vite/
-*.test
+/web/*.local
+
+# ─── Go workspace / module cache ────────────────────────────────────────
+go.work
+go.work.sum
+
+# ─── GeoIP databases (large, downloaded at deploy time) ─────────────────
+/geoip/
+*.mmdb
+
+# ─── Local environment / secrets ────────────────────────────────────────
 .env
 .env.local
+.env.*.local
+.envrc
+.direnv/
+
+# ─── Editor / IDE state ─────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS junk ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Tooling state (Claude Code / agent worktrees / cursor) ─────────────
+.claude/worktrees/
+.cursor/
+.agents/
+
+# ─── Compose / docker local overrides ───────────────────────────────────
+/docker-compose.override.yml
+/docker-compose.local.yml

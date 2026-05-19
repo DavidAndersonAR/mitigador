@@ -1,0 +1,209 @@
+# Mitigador — lab / evaluation stack.
+#
+# Brings up Postgres, the mitigador daemon, optional synthetic-flow
+# generators, and an optional admin UI for the database.
+#
+# Usage:
+#   docker compose up -d                      # core stack only
+#   docker compose --profile synth up -d      # + synthetic NetFlow traffic
+#   docker compose --profile debug up -d      # + adminer on :8081
+#   docker compose --profile bootstrap run --rm bootstrap-admin
+#                                              # create the first dashboard user
+#
+# Production note: do NOT use this compose on an ISP coletor box. Use the
+# .deb / .rpm + systemd path documented in deploy/systemd/.
+
+services:
+  # ───── Postgres 16 ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: mitigador-postgres
+    environment:
+      POSTGRES_USER: mitigador
+      POSTGRES_PASSWORD: mitigador
+      POSTGRES_DB: mitigador
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"  # exposed for local psql/adminer; bind 127.0.0.1 in prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mitigador -d mitigador"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # ───── One-shot: download a free ASN mmdb if not already present ──────
+  geoip-init:
+    image: alpine:3.20
+    container_name: mitigador-geoip-init
+    volumes:
+      - geoip-data:/geoip
+    command: >
+      sh -c '
+        set -e
+        if [ -s /geoip/asn.mmdb ]; then
+          echo "geoip: /geoip/asn.mmdb already present — skipping download"
+          exit 0
+        fi
+        apk add --no-cache curl >/dev/null
+        ym=$$(date +%Y-%m)
+        for off in 0 1 2 3 4 5; do
+          target=$$(date -d "-$${off} month" +%Y-%m 2>/dev/null || echo "$${ym}")
+          url="https://download.db-ip.com/free/dbip-asn-lite-$${target}.mmdb.gz"
+          echo "geoip: trying $${url}"
+          if curl -fsSL --max-time 30 -o /tmp/asn.mmdb.gz "$${url}"; then
+            gunzip -f /tmp/asn.mmdb.gz
+            mv /tmp/asn.mmdb /geoip/asn.mmdb
+            chmod 0644 /geoip/asn.mmdb
+            echo "geoip: $${target} mmdb installed"
+            exit 0
+          fi
+        done
+        echo "geoip: WARNING — could not fetch any db-ip ASN-Lite snapshot." >&2
+        echo "geoip: dashboard will fall back to the hand-curated CIDR table." >&2
+        # Leave a zero-byte file so mitigador does not retry every restart.
+        touch /geoip/asn.mmdb
+      '
+    restart: "no"
+
+  # ───── Mitigador daemon ───────────────────────────────────────────────
+  mitigador:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mitigador
+    image: mitigador:latest
+    container_name: mitigador
+    depends_on:
+      postgres:
+        condition: service_healthy
+      geoip-init:
+        condition: service_completed_successfully
+    environment:
+      # Required overrides — everything else comes from config.yaml.
+      MITIGADOR_POSTGRES_DSN: "postgres://mitigador:mitigador@postgres:5432/mitigador?sslmode=disable"
+      # Operator overrides for secrets — uncomment / set in .env to enable.
+      # MITIGADOR_HTTP_SESSION_SECRET: "..."
+      # MITIGADOR_TELEGRAM_BOT_TOKEN: "..."
+      # MITIGADOR_TELEGRAM_ALLOWED_CHAT_IDS: "..."
+      # MITIGADOR_SMTP_HOST: "..."
+      # MITIGADOR_SMTP_PORT: "587"
+      # MITIGADOR_SMTP_USERNAME: "..."
+      # MITIGADOR_SMTP_PASSWORD: "..."
+      # MITIGADOR_SMTP_FROM_ADDR: "..."
+      # MITIGADOR_SMTP_TO_ADDRS: "..."
+    volumes:
+      - ./deploy/compose/config.yaml:/etc/mitigador/config.yaml:ro
+      - ./deploy/examples/domain.yaml:/etc/mitigador/domain.yaml:ro
+      - geoip-data:/etc/mitigador/geoip:ro
+    ports:
+      - "8080:8080"        # HTTP API + SPA + SSE
+      - "2055:2055/udp"    # NetFlow v5/v9
+      - "4739:4739/udp"    # IPFIX
+      - "6343:6343/udp"    # sFlow
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/api/auth/csrf >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped
+
+  # ───── One-shot: create the initial dashboard admin user ──────────────
+  # Run on demand:
+  #   ADMIN_PASSWORD=changeme docker compose --profile bootstrap run --rm bootstrap-admin
+  bootstrap-admin:
+    image: mitigador:latest
+    profiles: ["bootstrap"]
+    depends_on:
+      mitigador:
+        condition: service_started
+    environment:
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+    volumes:
+      - ./deploy/compose/config.yaml:/etc/mitigador/config.yaml:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        if [ -z "$$ADMIN_PASSWORD" ]; then
+          echo "ERROR: set ADMIN_PASSWORD before running this profile" >&2
+          echo "  ADMIN_PASSWORD=changeme docker compose --profile bootstrap run --rm bootstrap-admin" >&2
+          exit 2
+        fi
+        printf "%s\n%s\n" "$$ADMIN_PASSWORD" "$$ADMIN_PASSWORD" | \
+          /usr/local/bin/mitigador user create "$$ADMIN_USERNAME" --config /etc/mitigador/config.yaml
+    restart: "no"
+
+  # ───── Synthetic NetFlow traffic for lab use ──────────────────────────
+  # `docker compose --profile synth up -d` starts a small fleet of generators
+  # against the mitigador NetFlow listener so the dashboard has something to
+  # show without wiring a real router.
+  flowgen-google:
+    image: mitigador-flowgen:latest
+    profiles: ["synth"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: flowgen
+    depends_on:
+      mitigador:
+        condition: service_started
+    command: ["--target","mitigador:2055","--src","127.0.0.1","--dst","8.8.8.8",
+              "--proto","17","--pps","6000","--bytes","1400","--duration","12h"]
+    restart: on-failure
+  flowgen-cloudflare:
+    image: mitigador-flowgen:latest
+    profiles: ["synth"]
+    depends_on:
+      mitigador:
+        condition: service_started
+    command: ["--target","mitigador:2055","--src","127.0.0.1","--dst","1.1.1.1",
+              "--proto","17","--pps","4500","--bytes","1400","--duration","12h"]
+    restart: on-failure
+  flowgen-youtube:
+    image: mitigador-flowgen:latest
+    profiles: ["synth"]
+    depends_on:
+      mitigador:
+        condition: service_started
+    command: ["--target","mitigador:2055","--src","127.0.0.1","--dst","142.250.69.78",
+              "--proto","6","--pps","3000","--bytes","1200","--duration","12h"]
+    restart: on-failure
+  flowgen-github:
+    image: mitigador-flowgen:latest
+    profiles: ["synth"]
+    depends_on:
+      mitigador:
+        condition: service_started
+    command: ["--target","mitigador:2055","--src","127.0.0.1","--dst","185.199.108.153",
+              "--proto","6","--pps","1500","--bytes","600","--duration","12h"]
+    restart: on-failure
+  flowgen-quad9:
+    image: mitigador-flowgen:latest
+    profiles: ["synth"]
+    depends_on:
+      mitigador:
+        condition: service_started
+    command: ["--target","mitigador:2055","--src","127.0.0.1","--dst","9.9.9.9",
+              "--proto","17","--pps","800","--bytes","1400","--duration","12h"]
+    restart: on-failure
+
+  # ───── Adminer: optional web UI for Postgres ──────────────────────────
+  adminer:
+    image: adminer:latest
+    profiles: ["debug"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  geoip-data:
