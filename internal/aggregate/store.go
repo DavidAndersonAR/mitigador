@@ -4,6 +4,7 @@ import (
 	"hash/fnv"
 	"net/netip"
 	"runtime"
+	"sort"
 
 	"github.com/mitigador/mitigador/internal/flow"
 )
@@ -111,6 +112,15 @@ type HostInfo struct {
 	LastSec int64
 }
 
+// TopEntry is one row of the Top(N) result: a host's totals over the window
+// plus its dominant L4 protocol. Returned by Store.Top.
+type TopEntry struct {
+	IP            netip.Addr
+	Bps           uint64 // total bytes-per-second summed across the window
+	Pps           uint64 // total packets-per-second summed across the window
+	DominantProto string // "udp", "icmp", or "other" — highest BpsXxx; tie-break udp > icmp > other
+}
+
 // Tick is called once per second by the detector.
 // For each host, it zeros the bucket at index (now+1) % WindowSize so that when
 // Update writes into that slot during the next second the old data is gone
@@ -145,4 +155,74 @@ func (s *Store) ActiveHosts(now int64) []HostInfo {
 		sh.mu.Unlock()
 	}
 	return out
+}
+
+// Top returns up to n hosts ranked by total Bps over the current WindowSize seconds, descending.
+//
+// Implementation notes:
+//   - Walks every shard under its own lock (same pattern as ActiveHosts).
+//     For each active host (LastSec within WindowSize), it sums the 60 buckets directly
+//     from the per-host ring without copying — Snapshot would allocate per host and
+//     blow the heap if many hosts are active.
+//   - Hosts with Bps==0 across the entire window are excluded.
+//   - Deterministic ordering: primary key Bps desc, secondary key IP string asc.
+//   - DominantProto: pick the proto with the highest summed BpsXxx; tie-break udp > icmp > other.
+//   - If n <= 0, returns an empty slice.
+//   - Safe for concurrent use; the per-shard locks prevent races with Update/Tick.
+func (s *Store) Top(now int64, n int) []TopEntry {
+	if n <= 0 {
+		return []TopEntry{}
+	}
+	var all []TopEntry
+	for _, sh := range s.shards {
+		sh.mu.Lock()
+		for ip, hr := range sh.hosts {
+			if now-hr.LastSec > WindowSize {
+				continue
+			}
+			var totalBps, totalPps uint64
+			var udpBps, icmpBps, otherBps uint64
+			for i := 0; i < WindowSize; i++ {
+				b := hr.Buckets[i]
+				totalBps += b.Bps
+				totalPps += b.Pps
+				udpBps += b.BpsUDP
+				icmpBps += b.BpsICMP
+				otherBps += b.BpsOther
+			}
+			if totalBps == 0 {
+				continue
+			}
+			proto := "udp"
+			best := udpBps
+			if icmpBps > best {
+				proto = "icmp"
+				best = icmpBps
+			}
+			if otherBps > best {
+				proto = "other"
+			}
+			all = append(all, TopEntry{
+				IP:            ip,
+				Bps:           totalBps,
+				Pps:           totalPps,
+				DominantProto: proto,
+			})
+		}
+		sh.mu.Unlock()
+	}
+	// Sort: Bps desc, then IP string asc (deterministic for ties).
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].Bps != all[j].Bps {
+			return all[i].Bps > all[j].Bps
+		}
+		return all[i].IP.String() < all[j].IP.String()
+	})
+	if len(all) > n {
+		all = all[:n]
+	}
+	if all == nil {
+		return []TopEntry{}
+	}
+	return all
 }
