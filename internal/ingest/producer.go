@@ -102,8 +102,17 @@ func decode(msg interface{}, exp *Exporter, args *producer.ProduceArgs) []flow.R
 
 	default:
 		// Raw packet struct from goflow2's pipe layer. Delegate to the proto producer.
+		// goflow2 requires a non-nil ProtoProducerConfig — passing nil panics inside
+		// enrich() at p.cfg.GetFormatter(). An empty ProducerConfig{} compiled to defaults
+		// is what cmd/goflow2 itself uses when no --mapping is provided.
+		cfgProducer := &protoproducer.ProducerConfig{}
+		cfgm, err := cfgProducer.Compile()
+		if err != nil {
+			slog.Warn("decode: failed to compile proto producer config", "err", err.Error())
+			return nil
+		}
 		pp, err := protoproducer.CreateProtoProducer(
-			nil,
+			cfgm,
 			protoproducer.CreateSamplingSystem,
 		)
 		if err != nil {

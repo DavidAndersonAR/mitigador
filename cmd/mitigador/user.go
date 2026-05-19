@@ -51,16 +51,30 @@ func openStore(configPath string) (*user.Store, func(), error) {
 	return user.NewStore(pool), pool.Close, nil
 }
 
+// stdinReader is a process-wide reader so successive readPasswordTTY calls in
+// non-TTY mode (piped stdin) preserve buffered bytes across reads.
+var stdinReader = bufio.NewReader(os.Stdin)
+
 // readPasswordTTY reads a password from the TTY without echo.
 // The prompt is printed to stderr so it does not pollute stdout output.
+// If stdin is not a TTY (pipe or non-interactive), reads one line of stdin instead —
+// enables `printf "pw\npw\n" | mitigador user create foo` in scripts and tests.
 func readPasswordTTY(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-	bytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Fprintln(os.Stderr) // newline after the silent input
-	if err != nil {
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		fmt.Fprint(os.Stderr, prompt)
+		bytes, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", fmt.Errorf("read password: %w", err)
+		}
+		return string(bytes), nil
+	}
+	line, err := stdinReader.ReadString('\n')
+	if err != nil && line == "" {
 		return "", fmt.Errorf("read password: %w", err)
 	}
-	return string(bytes), nil
+	return strings.TrimRight(line, "\r\n"), nil
 }
 
 func newUserCreateCmd(configPath *string) *cobra.Command {
@@ -183,8 +197,7 @@ func newUserDeleteCmd(configPath *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !assumeYes {
 				fmt.Fprintf(os.Stderr, "Delete user %q? [y/N]: ", args[0])
-				reader := bufio.NewReader(os.Stdin)
-				line, _ := reader.ReadString('\n')
+				line, _ := stdinReader.ReadString('\n')
 				line = strings.ToLower(strings.TrimSpace(line))
 				if line != "y" && line != "yes" {
 					return errors.New("aborted")

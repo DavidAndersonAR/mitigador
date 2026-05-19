@@ -45,7 +45,7 @@ func setupServer(t *testing.T) (*httptest.Server, *pgxpool.Pool, *user.Store) {
 		t.Fatalf("pool.Ping: %v", err)
 	}
 
-	sm := session.NewManager(pool)
+	sm := session.NewManager(pool, false)
 	userStore := user.NewStore(pool)
 	incStore := incident.NewStore(pool)
 	inv := &ingest.Inventory{}

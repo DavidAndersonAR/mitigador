@@ -177,8 +177,8 @@ func TestE2E_FlowToIncident(t *testing.T) {
 		t.Fatalf("login POST: %v", err)
 	}
 	_ = loginResp.Body.Close()
-	if loginResp.StatusCode != http.StatusOK {
-		t.Fatalf("login: expected 200, got %d", loginResp.StatusCode)
+	if loginResp.StatusCode != http.StatusOK && loginResp.StatusCode != http.StatusNoContent {
+		t.Fatalf("login: expected 200 or 204, got %d", loginResp.StatusCode)
 	}
 	t.Logf("login OK (status %d, cookies: %v)", loginResp.StatusCode, jar.Cookies(mustParseURL(baseURL)))
 

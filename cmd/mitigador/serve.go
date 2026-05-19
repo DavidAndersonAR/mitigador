@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -136,7 +137,10 @@ func serve(rootCtx context.Context, configPath string) error {
 	sseBroker := api.NewBroker(sseSub)
 
 	// 15) Session manager + API server.
-	sm := session.NewManager(pool)
+	// Secure cookies only when the operator-declared base URL is https — otherwise
+	// browsers (and Go's cookiejar) silently drop the cookie on plain http.
+	secureCookies := strings.HasPrefix(cfg.HTTP.AppBaseURL, "https://")
+	sm := session.NewManager(pool, secureCookies)
 	apiHandler := api.New(api.Deps{
 		Pool:      pool,
 		SM:        sm,
