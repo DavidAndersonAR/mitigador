@@ -12,6 +12,7 @@ type Config struct {
 	SMTP     SMTP     `mapstructure:"smtp"     validate:"required"`
 	Log      Log      `mapstructure:"log"`
 	GeoIP    GeoIP    `mapstructure:"geoip"`
+	Mikrotik Mikrotik `mapstructure:"mikrotik"`
 }
 
 // GeoIP optionally enriches dashboard rows with AS organization names and
@@ -21,6 +22,25 @@ type Config struct {
 type GeoIP struct {
 	ASNPath     string `mapstructure:"asn_path"`
 	CountryPath string `mapstructure:"country_path"`
+}
+
+// Mikrotik configures the dynamic subscriber-resolver poller.
+// Empty Routers = feature disabled; dashboards still work, subscribers
+// just never appear.
+type Mikrotik struct {
+	Enabled         bool             `mapstructure:"enabled"`
+	PollIntervalSec int              `mapstructure:"poll_interval_sec"`
+	Routers         []MikrotikRouter `mapstructure:"routers"`
+}
+
+// MikrotikRouter describes one device. Username/Password should be a
+// read-only API user — Mitigador never writes to the router.
+type MikrotikRouter struct {
+	Name      string `mapstructure:"name"      validate:"required"`
+	URL       string `mapstructure:"url"       validate:"required,url"`
+	Username  string `mapstructure:"username"  validate:"required"`
+	Password  string `mapstructure:"password"  validate:"required"`
+	VerifyTLS bool   `mapstructure:"verify_tls"`
 }
 
 // Postgres holds DB connection settings.

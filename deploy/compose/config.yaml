@@ -50,3 +50,21 @@ log:
 geoip:
   asn_path: "/etc/mitigador/geoip/asn.mmdb"
   country_path: "/etc/mitigador/geoip/country.mmdb"
+
+# ─── Mikrotik subscriber resolver (optional) ──────────────────────────
+# Pulls PPPoE active sessions + DHCP leases from your router(s) so the
+# dashboard chips show "👤 joao.silva" instead of "100.64.17.10".
+#
+# Replace url/username/password with your real router. Use a read-only
+# API user — Mitigador never writes to the router. For production keep
+# this file mode 0600 and owned by the mitigador user, or override the
+# password via MITIGADOR_MIKROTIK_ROUTERS_0_PASSWORD env var.
+mikrotik:
+  enabled: false                # flip to true once you set credentials below
+  poll_interval_sec: 30
+  routers:
+    - name: "BR1"
+      url: "https://10.100.70.1"
+      username: "mitigador-readonly"
+      password: "CHANGE_ME"
+      verify_tls: false         # MK self-signed certs are normal — keep false unless you ship a real cert

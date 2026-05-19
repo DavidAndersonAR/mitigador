@@ -36,10 +36,12 @@ export interface DashboardKPIs {
 
 export interface DashboardTopEntry {
   ip: string;
-  hostname: string;       // PTR — empty until cache populates
-  owner: string;          // ASN holder (e.g. "Cloudflare") — empty if unknown
-  country_iso: string;    // ISO-3166 alpha-2 (e.g. "US") — empty if no Country mmdb
+  hostname: string;            // PTR — empty until cache populates
+  owner: string;               // ASN holder (e.g. "Cloudflare") — empty if unknown
+  country_iso: string;         // ISO-3166 alpha-2 (e.g. "US") — empty if no Country mmdb
   country_name: string;
+  subscriber: string;          // PPPoE/DHCP username — empty if no Mikrotik mapping
+  subscriber_label: string;    // "pppoe · BR1" style hint
   hostgroup: string | null;
   bps: number;
   pps: number;
@@ -61,9 +63,11 @@ export interface DashboardRecentFlow {
   src_ip: string;
   src_hostname: string;
   src_owner: string;
+  src_subscriber: string;
   dst_ip: string;
   dst_hostname: string;
   dst_owner: string;
+  dst_subscriber: string;
   dst_hostgroup: string;
   proto: DashboardProto;
   bytes: number;

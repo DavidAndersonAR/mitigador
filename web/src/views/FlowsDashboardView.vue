@@ -237,7 +237,10 @@ onBeforeUnmount(() => {
                   {{ t('flows.proto.' + row.dominant_proto) }}
                 </NTag>
                 <div class="top-ip-stack">
-                  <span v-if="row.owner" class="owner-chip" :title="row.owner">{{ row.owner }}</span>
+                  <span v-if="row.subscriber" class="subscriber-chip" :title="row.subscriber_label || row.subscriber">
+                    👤 {{ row.subscriber }}
+                  </span>
+                  <span v-else-if="row.owner" class="owner-chip" :title="row.owner">{{ row.owner }}</span>
                   <span class="ip">{{ row.ip }}</span>
                   <span class="hostname" :title="row.hostname || ''">{{ row.hostname || hostgroupLabel(row.hostgroup) }}</span>
                 </div>
@@ -306,13 +309,15 @@ onBeforeUnmount(() => {
             <tr v-for="(f, idx) in recent.flows" :key="idx + '-' + f.received_ms">
               <td class="when">{{ formatRelative(f.received_ms) }}</td>
               <td class="addr">
-                <span v-if="f.src_owner" class="owner-chip-sm" :title="f.src_owner">{{ f.src_owner }}</span>
+                <span v-if="f.src_subscriber" class="subscriber-chip-sm" :title="f.src_subscriber">👤 {{ f.src_subscriber }}</span>
+                <span v-else-if="f.src_owner" class="owner-chip-sm" :title="f.src_owner">{{ f.src_owner }}</span>
                 <span class="ip">{{ f.src_ip }}</span>
                 <span v-if="f.src_hostname" class="hostname" :title="f.src_hostname">{{ f.src_hostname }}</span>
               </td>
               <td class="arrow">→</td>
               <td class="addr">
-                <span v-if="f.dst_owner" class="owner-chip-sm" :title="f.dst_owner">{{ f.dst_owner }}</span>
+                <span v-if="f.dst_subscriber" class="subscriber-chip-sm" :title="f.dst_subscriber">👤 {{ f.dst_subscriber }}</span>
+                <span v-else-if="f.dst_owner" class="owner-chip-sm" :title="f.dst_owner">{{ f.dst_owner }}</span>
                 <span class="ip">{{ f.dst_ip }}</span>
                 <span v-if="f.dst_hostname" class="hostname" :title="f.dst_hostname">{{ f.dst_hostname }}</span>
                 <span v-else-if="f.dst_hostgroup" class="hg-inline">{{ f.dst_hostgroup }}</span>
@@ -472,6 +477,34 @@ onBeforeUnmount(() => {
   color: #62a6ff;
   font-size: 10px;
   font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.subscriber-chip {
+  display: inline-block;
+  background: linear-gradient(90deg, #f59e0b 0%, #f0a020 100%);
+  color: #1c1410;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.subscriber-chip-sm {
+  display: inline-block;
+  background: rgba(240, 160, 32, 0.20);
+  color: #f0a020;
+  font-size: 10px;
+  font-weight: 700;
   padding: 1px 6px;
   border-radius: 8px;
   letter-spacing: 0.2px;

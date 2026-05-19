@@ -15,6 +15,7 @@ import (
 	"github.com/mitigador/mitigador/internal/incident"
 	"github.com/mitigador/mitigador/internal/ingest"
 	"github.com/mitigador/mitigador/internal/netowner"
+	"github.com/mitigador/mitigador/internal/subscriber"
 	"github.com/mitigador/mitigador/internal/user"
 )
 
@@ -32,6 +33,7 @@ type Deps struct {
 	RecentFlows *flow.RecentBuffer // ring buffer of latest flow records for /api/dashboard/recent
 	DNS         *dns.Resolver      // cached PTR resolution for dashboard enrichment
 	NetOwner    *netowner.Resolver // ASN organization lookup (mmdb-backed + CIDR fallback)
+	Subscribers *subscriber.Store  // dynamic CGN→subscriber mapping (Mikrotik poller)
 }
 
 // New returns an http.Handler with all routes mounted.

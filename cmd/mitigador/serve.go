@@ -28,6 +28,7 @@ import (
 	"github.com/mitigador/mitigador/internal/incident"
 	"github.com/mitigador/mitigador/internal/ingest"
 	"github.com/mitigador/mitigador/internal/netowner"
+	"github.com/mitigador/mitigador/internal/subscriber"
 	"github.com/mitigador/mitigador/internal/session"
 	pg "github.com/mitigador/mitigador/internal/storage/postgres"
 	"github.com/mitigador/mitigador/internal/user"
@@ -141,6 +142,29 @@ func serve(rootCtx context.Context, configPath string) error {
 	}
 	netOwnerResolver := netowner.New(asnDB, countryDB)
 
+	// Optional Mikrotik subscriber poller — resolves CGN-internal IPs back
+	// to PPPoE / DHCP identities so the dashboard can show customer names.
+	subscriberStore := subscriber.New()
+	var mtPoller *subscriber.Poller
+	if cfg.Mikrotik.Enabled && len(cfg.Mikrotik.Routers) > 0 {
+		routers := make([]subscriber.RouterConfig, 0, len(cfg.Mikrotik.Routers))
+		for _, r := range cfg.Mikrotik.Routers {
+			routers = append(routers, subscriber.RouterConfig{
+				Name:      r.Name,
+				URL:       r.URL,
+				Username:  r.Username,
+				Password:  r.Password,
+				VerifyTLS: r.VerifyTLS,
+			})
+		}
+		interval := time.Duration(cfg.Mikrotik.PollIntervalSec) * time.Second
+		mtPoller = subscriber.NewPoller(subscriber.PollerConfig{
+			Routers:      routers,
+			PollInterval: interval,
+		}, subscriberStore)
+		slog.Info("subscriber: mikrotik poller enabled", "routers", len(routers), "interval_sec", cfg.Mikrotik.PollIntervalSec)
+	}
+
 	// 11) Detect engine.
 	engine := detect.NewEngine(store, catalog, attackEvents)
 
@@ -184,6 +208,7 @@ func serve(rootCtx context.Context, configPath string) error {
 		RecentFlows: recentFlows,
 		DNS:         dnsResolver,
 		NetOwner:    netOwnerResolver,
+		Subscribers: subscriberStore,
 	})
 
 	// 16) HTTP server.
@@ -202,6 +227,22 @@ func serve(rootCtx context.Context, configPath string) error {
 	// cancels all peers on the first non-nil return, causing a clean daemon restart
 	// via systemd Restart=on-failure.
 	g, gctx := errgroup.WithContext(ctx)
+
+	// Optional: Mikrotik subscriber poller (PPPoE + DHCP active sessions).
+	if mtPoller != nil {
+		g.Go(func() error {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("subscriber poller: panic recovered", "panic", fmt.Sprintf("%v", r))
+				}
+			}()
+			err := mtPoller.Run(gctx)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				slog.Warn("subscriber poller: exited with error", "err", err.Error())
+			}
+			return nil
+		})
+	}
 
 	// Flow → aggregate writer.
 	// aggregate.Store.Update is concurrency-safe; this goroutine is the single writer.

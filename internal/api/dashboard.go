@@ -30,16 +30,18 @@ type dashOverviewBucket struct {
 }
 
 type dashTopEntry struct {
-	IP            string   `json:"ip"`
-	Hostname      string   `json:"hostname"` // reverse-DNS (PTR) — empty until cache populates
-	Owner         string   `json:"owner"`    // ASN holder (Cloudflare, Google, …) from netowner table; empty if unknown
-	CountryISO    string   `json:"country_iso"`
-	CountryName   string   `json:"country_name"`
-	Hostgroup     *string  `json:"hostgroup"`
-	Bps           uint64   `json:"bps"`
-	Pps           uint64   `json:"pps"`
-	DominantProto string   `json:"dominant_proto"`
-	Sparkline     []uint64 `json:"sparkline"` // bps per second, newest-first, len = WindowSize
+	IP              string   `json:"ip"`
+	Hostname        string   `json:"hostname"` // reverse-DNS (PTR) — empty until cache populates
+	Owner           string   `json:"owner"`    // ASN holder (Cloudflare, Google, …) from netowner table; empty if unknown
+	CountryISO      string   `json:"country_iso"`
+	CountryName     string   `json:"country_name"`
+	Subscriber      string   `json:"subscriber"`        // PPPoE username / DHCP host-name — empty if no match
+	SubscriberLabel string   `json:"subscriber_label"`  // human-readable display (Service · Router)
+	Hostgroup       *string  `json:"hostgroup"`
+	Bps             uint64   `json:"bps"`
+	Pps             uint64   `json:"pps"`
+	DominantProto   string   `json:"dominant_proto"`
+	Sparkline       []uint64 `json:"sparkline"` // bps per second, newest-first, len = WindowSize
 }
 
 type dashProtoBreakdown struct {
@@ -133,17 +135,20 @@ func handleDashboardOverview(deps Deps) http.HandlerFunc {
 				spark[j] = b.Bps
 			}
 			iso, cname := resolveCountry(deps, e.IP)
+			sub, subLabel := resolveSubscriber(deps, e.IP)
 			topRows[i] = dashTopEntry{
-				IP:            e.IP.String(),
-				Hostname:      resolveHostname(deps, e.IP),
-				Owner:         resolveOwner(deps, e.IP),
-				CountryISO:    iso,
-				CountryName:   cname,
-				Hostgroup:     resolveHostgroup(deps, e.IP),
-				Bps:           e.Bps,
-				Pps:           e.Pps,
-				DominantProto: e.DominantProto,
-				Sparkline:     spark,
+				IP:              e.IP.String(),
+				Hostname:        resolveHostname(deps, e.IP),
+				Owner:           resolveOwner(deps, e.IP),
+				CountryISO:      iso,
+				CountryName:     cname,
+				Subscriber:      sub,
+				SubscriberLabel: subLabel,
+				Hostgroup:       resolveHostgroup(deps, e.IP),
+				Bps:             e.Bps,
+				Pps:             e.Pps,
+				DominantProto:   e.DominantProto,
+				Sparkline:       spark,
 			}
 		}
 
@@ -167,20 +172,22 @@ func handleDashboardOverview(deps Deps) http.HandlerFunc {
 }
 
 type dashRecentFlow struct {
-	ReceivedMs   int64  `json:"received_ms"`
-	SrcIP        string `json:"src_ip"`
-	SrcHostname  string `json:"src_hostname"` // PTR, empty until cached
-	SrcOwner     string `json:"src_owner"`    // ASN holder from netowner table; empty if unknown
-	DstIP        string `json:"dst_ip"`
-	DstHostname  string `json:"dst_hostname"`
-	DstOwner     string `json:"dst_owner"`
-	DstHostgroup string `json:"dst_hostgroup"` // longest-prefix-match hostgroup name; empty if none
-	Proto        string `json:"proto"`
-	Bytes        uint64 `json:"bytes"`
-	Packets      uint64 `json:"packets"`
-	AvgPktBytes  uint64 `json:"avg_pkt_bytes"` // bytes / packets (0 if packets == 0)
-	SampleRate   uint32 `json:"sample_rate"`
-	Exporter     string `json:"exporter"`
+	ReceivedMs     int64  `json:"received_ms"`
+	SrcIP          string `json:"src_ip"`
+	SrcHostname    string `json:"src_hostname"`     // PTR, empty until cached
+	SrcOwner       string `json:"src_owner"`        // ASN holder from netowner table; empty if unknown
+	SrcSubscriber  string `json:"src_subscriber"`   // PPPoE/DHCP username if SrcIP is a CGN client
+	DstIP          string `json:"dst_ip"`
+	DstHostname    string `json:"dst_hostname"`
+	DstOwner       string `json:"dst_owner"`
+	DstSubscriber  string `json:"dst_subscriber"`   // PPPoE/DHCP username if DstIP is a CGN client
+	DstHostgroup   string `json:"dst_hostgroup"`    // longest-prefix-match hostgroup name; empty if none
+	Proto          string `json:"proto"`
+	Bytes          uint64 `json:"bytes"`
+	Packets        uint64 `json:"packets"`
+	AvgPktBytes    uint64 `json:"avg_pkt_bytes"`    // bytes / packets (0 if packets == 0)
+	SampleRate     uint32 `json:"sample_rate"`
+	Exporter       string `json:"exporter"`
 }
 
 type dashRecentResponse struct {
@@ -223,21 +230,25 @@ func handleDashboardRecent(deps Deps) http.HandlerFunc {
 			if h := resolveHostgroup(deps, rec.DstIP); h != nil {
 				hg = *h
 			}
+			srcSub, _ := resolveSubscriber(deps, rec.SrcIP)
+			dstSub, _ := resolveSubscriber(deps, rec.DstIP)
 			out[i] = dashRecentFlow{
-				ReceivedMs:   rec.Received.UnixMilli(),
-				SrcIP:        rec.SrcIP.String(),
-				SrcHostname:  resolveHostname(deps, rec.SrcIP),
-				SrcOwner:     resolveOwner(deps, rec.SrcIP),
-				DstIP:        rec.DstIP.String(),
-				DstHostname:  resolveHostname(deps, rec.DstIP),
-				DstOwner:     resolveOwner(deps, rec.DstIP),
-				DstHostgroup: hg,
-				Proto:        protoLabel(rec.Proto),
-				Bytes:        rec.Bytes,
-				Packets:      rec.Packets,
-				AvgPktBytes:  avg,
-				SampleRate:   rec.SampleRate,
-				Exporter:     rec.Exporter.String(),
+				ReceivedMs:    rec.Received.UnixMilli(),
+				SrcIP:         rec.SrcIP.String(),
+				SrcHostname:   resolveHostname(deps, rec.SrcIP),
+				SrcOwner:      resolveOwner(deps, rec.SrcIP),
+				SrcSubscriber: srcSub,
+				DstIP:         rec.DstIP.String(),
+				DstHostname:   resolveHostname(deps, rec.DstIP),
+				DstOwner:      resolveOwner(deps, rec.DstIP),
+				DstSubscriber: dstSub,
+				DstHostgroup:  hg,
+				Proto:         protoLabel(rec.Proto),
+				Bytes:         rec.Bytes,
+				Packets:       rec.Packets,
+				AvgPktBytes:   avg,
+				SampleRate:    rec.SampleRate,
+				Exporter:      rec.Exporter.String(),
 			}
 		}
 		writeJSON(w, http.StatusOK, dashRecentResponse{
@@ -370,6 +381,10 @@ func handleDashboardAnalytics(deps Deps) http.HandlerFunc {
 		type edgeKey struct{ src, dst string }
 		edges := map[edgeKey]*dashSankeyEdge{}
 		labelize := func(ip netip.Addr) string {
+			// Subscriber wins (operator-meaningful identity).
+			if sub, _ := resolveSubscriber(deps, ip); sub != "" {
+				return sub
+			}
 			if name := resolveOwner(deps, ip); name != "" {
 				return name
 			}
@@ -453,6 +468,24 @@ func resolveCountry(deps Deps, ip netip.Addr) (iso, name string) {
 		return "", ""
 	}
 	return deps.NetOwner.CountryISO(ip), deps.NetOwner.CountryName(ip)
+}
+
+// resolveSubscriber returns (username, "service · router") for ip — both empty
+// when no subscriber store is wired or the IP has no active session.
+func resolveSubscriber(deps Deps, ip netip.Addr) (name, label string) {
+	if deps.Subscribers == nil {
+		return "", ""
+	}
+	sub, ok := deps.Subscribers.Lookup(ip)
+	if !ok {
+		return "", ""
+	}
+	if sub.Router != "" {
+		label = sub.Service + " · " + sub.Router
+	} else {
+		label = sub.Service
+	}
+	return sub.Username, label
 }
 
 func protoLabel(p flow.Proto) string {
