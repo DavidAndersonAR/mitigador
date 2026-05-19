@@ -1,0 +1,34 @@
+exporters:
+  - source_ip: "10.0.0.1"
+    type: "netflow"
+    sample_rate_override: 1000
+    description: "Mikrotik border router 1"
+  - source_ip: "10.0.0.2"
+    type: "ipfix"
+    sample_rate_override: 0
+    description: "Juniper border router 1"
+
+hostgroups:
+  - name: "corporate"
+    prefix: "192.0.2.0/24"
+    description: "Corporate customers"
+
+thresholds:
+  - hostgroup: "corporate"
+    vector: "udp_flood"
+    pps: 100000
+    bps: 800000000
+    min_window_sec: 5
+    grace_sec: 60
+
+alert_channels:
+  - type: "telegram"
+    target: "123456789"
+    enabled: true
+  - type: "email"
+    target: "ops@example.com"
+    enabled: true
+
+whitelist:
+  - prefix: "10.0.0.0/24"
+    reason: "infrastructure"
