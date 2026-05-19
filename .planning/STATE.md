@@ -42,6 +42,10 @@ Plan: Not started
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 01.1 inserted after Phase 1 (2026-05-19): Flow Analytics — top talkers + per-host charts (URGENT — operator drill-down need surfaced during Phase 1 smoke test)
+
 ### Key Decisions (from PROJECT.md, validated pela pesquisa)
 
 - **Stack:** Go 1.22+ orquestrador + FastNetMon Community (engine de detecção) + GoBGP v4.5+ (BGP embedded) + PostgreSQL 16 + Vue 3 + Vite + Naive UI + SSE + systemd + goreleaser (`.deb`/`.rpm`).

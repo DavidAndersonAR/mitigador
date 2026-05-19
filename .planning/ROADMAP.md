@@ -39,6 +39,16 @@
 - [x] 01-12-PLAN.md — `mitigador serve` integration (errgroup + graceful shutdown) + flowgen + E2E test + operator smoke checkpoint
 **UI hint**: yes
 
+### Phase 01.1: Flow Analytics — top talkers + per-host charts (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 01.1 to break down)
+
 ### Phase 2: BGP Mitigation with Safety Rails
 **Goal**: Operador habilita mitigação BGP RTBH com todas as barreiras de segurança (whitelist, dry-run default, manual-approve via Telegram inline button, panic button, TTL obrigatório, origin check, audit log imutável). Mitigação real fica disponível mas falsos-positivos catastróficos são estruturalmente impossíveis.
 **Depends on**: Phase 1
