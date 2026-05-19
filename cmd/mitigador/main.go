@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/mitigador/mitigador/internal/config"
 	"github.com/mitigador/mitigador/internal/version"
 )
 
@@ -17,17 +18,19 @@ func main() {
 }
 
 func newRootCmd() *cobra.Command {
+	var configPath string
 	cmd := &cobra.Command{
 		Use:     "mitigador",
 		Short:   "DDoS detection and mitigation for ISPs",
 		Long:    "Mitigador detecta e mitiga ataques DDoS volumétricos para ISPs via NetFlow/IPFIX/sFlow + BGP RTBH/Flowspec. Phase 1 entrega observação pura.",
 		Version: version.String(),
 	}
+	cmd.PersistentFlags().StringVar(&configPath, "config", config.DefaultPath, "path to mitigador config.yaml")
 	cmd.AddCommand(
 		newVersionCmd(),
 		newServeStubCmd(),
-		newConfigCmd(),
-		newUserCmd(),
+		newConfigCmd(&configPath),
+		newUserCmd(&configPath),
 	)
 	return cmd
 }
@@ -52,35 +55,6 @@ func newServeStubCmd() *cobra.Command {
 	}
 }
 
-func newConfigCmd() *cobra.Command {
-	c := &cobra.Command{
-		Use:   "config",
-		Short: "Manage domain configuration",
-	}
-	c.AddCommand(&cobra.Command{
-		Use:   "sync",
-		Short: "Sync domain config (exporters, hostgroups, thresholds, alert channels, whitelist) from YAML into Postgres",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("config sync: not yet implemented (see plan 01-04)")
-		},
-	})
-	return c
-}
-
-func newUserCmd() *cobra.Command {
-	u := &cobra.Command{
-		Use:   "user",
-		Short: "Manage dashboard users",
-	}
-	for _, sub := range []string{"create", "list", "passwd", "delete"} {
-		sub := sub
-		u.AddCommand(&cobra.Command{
-			Use:   sub,
-			Short: "user " + sub + " (stub — see plan 01-04)",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				return fmt.Errorf("user %s: not yet implemented (see plan 01-04)", sub)
-			},
-		})
-	}
-	return u
-}
+// newConfigCmd is defined in config_sync.go (plan 01-04 Task 3).
+// This declaration lives here so main.go compiles independently of task ordering.
+// The actual implementation is in cmd/mitigador/config_sync.go.
