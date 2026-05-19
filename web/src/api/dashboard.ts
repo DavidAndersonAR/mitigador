@@ -38,6 +38,8 @@ export interface DashboardTopEntry {
   ip: string;
   hostname: string;       // PTR — empty until cache populates
   owner: string;          // ASN holder (e.g. "Cloudflare") — empty if unknown
+  country_iso: string;    // ISO-3166 alpha-2 (e.g. "US") — empty if no Country mmdb
+  country_name: string;
   hostgroup: string | null;
   bps: number;
   pps: number;
@@ -82,4 +84,39 @@ export function fetchOverview(): Promise<DashboardOverview> {
 
 export function fetchRecent(n = 50): Promise<DashboardRecent> {
   return api<DashboardRecent>(`/api/dashboard/recent?n=${encodeURIComponent(String(n))}`);
+}
+
+// ─── Analytics (Akvorado-style aggregations) ────────────────────────────
+
+export interface DashboardOwnerBucket {
+  owner: string;
+  bps: number;
+  pps: number;
+  hosts: number;
+}
+
+export interface DashboardCountryBucket {
+  iso: string;   // ISO-3166 alpha-2 (or "??" if unknown)
+  name: string;  // English country name
+  bps: number;
+  pps: number;
+  hosts: number;
+}
+
+export interface DashboardSankeyEdge {
+  source: string;
+  target: string;
+  bytes: number;
+  count: number;
+}
+
+export interface DashboardAnalytics {
+  generated_at: string;
+  top_owners: DashboardOwnerBucket[];
+  top_countries: DashboardCountryBucket[];
+  sankey: DashboardSankeyEdge[];
+}
+
+export function fetchAnalytics(): Promise<DashboardAnalytics> {
+  return api<DashboardAnalytics>('/api/dashboard/analytics');
 }

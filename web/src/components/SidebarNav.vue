@@ -24,6 +24,10 @@ const menuOptions = computed(() => [
     key: 'flows',
   },
   {
+    label: t('nav.analytics'),
+    key: 'analytics',
+  },
+  {
     label: t('nav.traffic'),
     key: 'traffic',
   },
@@ -44,6 +48,7 @@ const menuOptions = computed(() => [
 const routeMap: Record<string, string> = {
   dashboard: '/',
   flows: '/flows',
+  analytics: '/analytics',
   traffic: '/traffic',
   exporters: '/exporters',
   bgp: '/bgp',

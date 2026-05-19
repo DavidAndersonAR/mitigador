@@ -88,6 +88,7 @@ func New(deps Deps) http.Handler {
 		p.Get("/api/traffic/host/{ip}", handleTrafficHost(deps))
 		p.Get("/api/dashboard/overview", handleDashboardOverview(deps))
 		p.Get("/api/dashboard/recent", handleDashboardRecent(deps))
+		p.Get("/api/dashboard/analytics", handleDashboardAnalytics(deps))
 		p.Get("/api/events", deps.SSEBroker.Handler)
 	})
 

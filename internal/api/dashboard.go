@@ -33,6 +33,8 @@ type dashTopEntry struct {
 	IP            string   `json:"ip"`
 	Hostname      string   `json:"hostname"` // reverse-DNS (PTR) — empty until cache populates
 	Owner         string   `json:"owner"`    // ASN holder (Cloudflare, Google, …) from netowner table; empty if unknown
+	CountryISO    string   `json:"country_iso"`
+	CountryName   string   `json:"country_name"`
 	Hostgroup     *string  `json:"hostgroup"`
 	Bps           uint64   `json:"bps"`
 	Pps           uint64   `json:"pps"`
@@ -130,10 +132,13 @@ func handleDashboardOverview(deps Deps) http.HandlerFunc {
 			for j, b := range snap {
 				spark[j] = b.Bps
 			}
+			iso, cname := resolveCountry(deps, e.IP)
 			topRows[i] = dashTopEntry{
 				IP:            e.IP.String(),
 				Hostname:      resolveHostname(deps, e.IP),
 				Owner:         resolveOwner(deps, e.IP),
+				CountryISO:    iso,
+				CountryName:   cname,
 				Hostgroup:     resolveHostgroup(deps, e.IP),
 				Bps:           e.Bps,
 				Pps:           e.Pps,
@@ -242,6 +247,194 @@ func handleDashboardRecent(deps Deps) http.HandlerFunc {
 	}
 }
 
+// ─── Analytics endpoint (Akvorado-flavored aggregations) ──────────────
+
+type dashOwnerBucket struct {
+	Owner string `json:"owner"`
+	Bps   uint64 `json:"bps"`
+	Pps   uint64 `json:"pps"`
+	Hosts int    `json:"hosts"` // distinct destination IPs in this owner
+}
+
+type dashCountryBucket struct {
+	ISO   string `json:"iso"`   // ISO-3166 alpha-2
+	Name  string `json:"name"`  // English country name
+	Bps   uint64 `json:"bps"`
+	Pps   uint64 `json:"pps"`
+	Hosts int    `json:"hosts"`
+}
+
+type dashSankeyEdge struct {
+	Source string `json:"source"` // src owner (or "private/127.x.x.x" for unmapped)
+	Target string `json:"target"` // dst owner / hostgroup / country
+	Bytes  uint64 `json:"bytes"`
+	Count  int    `json:"count"`
+}
+
+type dashAnalyticsResponse struct {
+	GeneratedAt  time.Time           `json:"generated_at"`
+	TopOwners    []dashOwnerBucket   `json:"top_owners"`
+	TopCountries []dashCountryBucket `json:"top_countries"`
+	Sankey       []dashSankeyEdge    `json:"sankey"`
+}
+
+// handleDashboardAnalytics handles GET /api/dashboard/analytics.
+// Returns three Akvorado-style aggregations in one shot so the UI makes a
+// single 1Hz poll for all of them:
+//   - top_owners:     bps/pps summed across destinations by AS organization
+//   - top_countries:  bps/pps summed across destinations by ISO-3166 country
+//   - sankey:         src_owner → dst_owner edges built from the recent-flows
+//                     ring buffer (last ~500 flow records)
+func handleDashboardAnalytics(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if deps.Store == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal"})
+			return
+		}
+		now := time.Now()
+		nowSec := now.Unix()
+
+		// Pull every active destination — Top(now, n) with a large n gives us
+		// the universe of currently-tracked hosts. 1024 is the cap; an ISP
+		// with more than that in a 60s window has bigger problems anyway.
+		entries := deps.Store.Top(nowSec, 1024)
+
+		type ownerAgg struct {
+			bps   uint64
+			pps   uint64
+			hosts int
+		}
+		type countryAgg struct {
+			name  string
+			bps   uint64
+			pps   uint64
+			hosts int
+		}
+		owners := map[string]*ownerAgg{}
+		countries := map[string]*countryAgg{}
+
+		for _, e := range entries {
+			owner := resolveOwner(deps, e.IP)
+			if owner == "" {
+				owner = "—"
+			}
+			oa, ok := owners[owner]
+			if !ok {
+				oa = &ownerAgg{}
+				owners[owner] = oa
+			}
+			oa.bps += e.Bps
+			oa.pps += e.Pps
+			oa.hosts++
+
+			iso, cname := resolveCountry(deps, e.IP)
+			if iso == "" {
+				iso = "??"
+				cname = "Unknown"
+			}
+			ca, ok := countries[iso]
+			if !ok {
+				ca = &countryAgg{name: cname}
+				countries[iso] = ca
+			}
+			ca.bps += e.Bps
+			ca.pps += e.Pps
+			ca.hosts++
+		}
+
+		topOwners := make([]dashOwnerBucket, 0, len(owners))
+		for name, a := range owners {
+			topOwners = append(topOwners, dashOwnerBucket{Owner: name, Bps: a.bps, Pps: a.pps, Hosts: a.hosts})
+		}
+		sortByBps(topOwners, func(b dashOwnerBucket) uint64 { return b.Bps })
+		if len(topOwners) > 12 {
+			topOwners = topOwners[:12]
+		}
+
+		topCountries := make([]dashCountryBucket, 0, len(countries))
+		for iso, a := range countries {
+			topCountries = append(topCountries, dashCountryBucket{ISO: iso, Name: a.name, Bps: a.bps, Pps: a.pps, Hosts: a.hosts})
+		}
+		sortByBps(topCountries, func(b dashCountryBucket) uint64 { return b.Bps })
+		if len(topCountries) > 12 {
+			topCountries = topCountries[:12]
+		}
+
+		// Sankey edges from the recent-flows ring buffer.
+		type edgeKey struct{ src, dst string }
+		edges := map[edgeKey]*dashSankeyEdge{}
+		if deps.RecentFlows != nil {
+			snap := deps.RecentFlows.Snapshot(500)
+			for _, rec := range snap {
+				src := resolveOwner(deps, rec.SrcIP)
+				if src == "" {
+					if rec.SrcIP.IsPrivate() || rec.SrcIP.IsLoopback() {
+						src = "private"
+					} else {
+						src = rec.SrcIP.String()
+					}
+				}
+				dst := resolveOwner(deps, rec.DstIP)
+				if dst == "" {
+					if rec.DstIP.IsPrivate() || rec.DstIP.IsLoopback() {
+						dst = "private"
+					} else if iso, _ := resolveCountry(deps, rec.DstIP); iso != "" {
+						dst = "country:" + iso
+					} else {
+						dst = "other"
+					}
+				}
+				if src == dst {
+					continue
+				}
+				key := edgeKey{src, dst}
+				e, ok := edges[key]
+				if !ok {
+					e = &dashSankeyEdge{Source: src, Target: dst}
+					edges[key] = e
+				}
+				e.Bytes += rec.Bytes
+				e.Count++
+			}
+		}
+		sankey := make([]dashSankeyEdge, 0, len(edges))
+		for _, e := range edges {
+			sankey = append(sankey, *e)
+		}
+		sortByBytes(sankey)
+		if len(sankey) > 40 {
+			sankey = sankey[:40]
+		}
+
+		writeJSON(w, http.StatusOK, dashAnalyticsResponse{
+			GeneratedAt:  now.UTC(),
+			TopOwners:    topOwners,
+			TopCountries: topCountries,
+			Sankey:       sankey,
+		})
+	}
+}
+
+// sortByBps sorts a slice of buckets by their Bps field, descending.
+// Uses a closure to extract the value so a single helper works for both
+// owner and country buckets without reflection.
+func sortByBps[T any](buckets []T, bps func(T) uint64) {
+	// Simple insertion sort — N <= 1024 in practice (Top cap).
+	for i := 1; i < len(buckets); i++ {
+		for j := i; j > 0 && bps(buckets[j]) > bps(buckets[j-1]); j-- {
+			buckets[j], buckets[j-1] = buckets[j-1], buckets[j]
+		}
+	}
+}
+
+func sortByBytes(edges []dashSankeyEdge) {
+	for i := 1; i < len(edges); i++ {
+		for j := i; j > 0 && edges[j].Bytes > edges[j-1].Bytes; j-- {
+			edges[j], edges[j-1] = edges[j-1], edges[j]
+		}
+	}
+}
+
 func resolveHostname(deps Deps, ip netip.Addr) string {
 	if deps.DNS == nil {
 		return ""
@@ -254,6 +447,13 @@ func resolveOwner(deps Deps, ip netip.Addr) string {
 		return ""
 	}
 	return deps.NetOwner.Lookup(ip)
+}
+
+func resolveCountry(deps Deps, ip netip.Addr) (iso, name string) {
+	if deps.NetOwner == nil {
+		return "", ""
+	}
+	return deps.NetOwner.CountryISO(ip), deps.NetOwner.CountryName(ip)
 }
 
 func protoLabel(p flow.Proto) string {

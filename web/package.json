@@ -12,11 +12,13 @@
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
     "@vicons/ionicons5": "^0.12.0",
+    "echarts": "^6.0.0",
     "naive-ui": "^2.39.0",
     "pinia": "^2.1.7",
     "uplot": "^1.6.32",
     "vfonts": "^0.0.3",
     "vue": "^3.4.0",
+    "vue-echarts": "^8.0.1",
     "vue-i18n": "^9.13.1",
     "vue-router": "^4.3.0"
   },

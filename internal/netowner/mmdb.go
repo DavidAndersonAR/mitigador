@@ -63,16 +63,38 @@ func (m *MMDB) Lookup(ip netip.Addr) (uint32, string) {
 }
 
 // Resolver is the public lookup surface used by the API layer.
-// Construct with New; either field may be nil and lookups still work
-// (degrading to the CIDR fallback table).
+// Construct with New; any field may be nil and lookups still work
+// (ASN degrades to the CIDR fallback; Country returns empty).
 type Resolver struct {
-	mmdb *MMDB
+	mmdb    *MMDB
+	country *CountryMMDB
 }
 
 // New returns a resolver that uses mmdb (if non-nil) and falls back to the
-// hand-curated CIDR table for IPs the mmdb does not cover.
-func New(mmdb *MMDB) *Resolver {
-	return &Resolver{mmdb: mmdb}
+// hand-curated CIDR table for IPs the mmdb does not cover. The country mmdb
+// is optional — pass nil to disable country enrichment.
+func New(mmdb *MMDB, country *CountryMMDB) *Resolver {
+	return &Resolver{mmdb: mmdb, country: country}
+}
+
+// CountryISO returns the ISO-3166 alpha-2 code (e.g. "BR", "US") for ip,
+// or "" if no Country mmdb is loaded / no match.
+func (r *Resolver) CountryISO(ip netip.Addr) string {
+	if r == nil || r.country == nil {
+		return ""
+	}
+	iso, _, _ := r.country.Country(ip)
+	return iso
+}
+
+// CountryName returns the English country name for ip ("United States"),
+// or "" if unavailable.
+func (r *Resolver) CountryName(ip netip.Addr) string {
+	if r == nil || r.country == nil {
+		return ""
+	}
+	_, name, _ := r.country.Country(ip)
+	return name
 }
 
 // Lookup returns the organization name for ip, or "" if neither source

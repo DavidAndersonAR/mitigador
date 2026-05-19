@@ -33,7 +33,7 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # ───── One-shot: download a free ASN mmdb if not already present ──────
+  # ───── One-shot: download free ASN + Country mmdbs if not present ─────
   geoip-init:
     image: alpine:3.20
     container_name: mitigador-geoip-init
@@ -42,28 +42,31 @@ services:
     command: >
       sh -c '
         set -e
-        if [ -s /geoip/asn.mmdb ]; then
-          echo "geoip: /geoip/asn.mmdb already present — skipping download"
-          exit 0
-        fi
         apk add --no-cache curl >/dev/null
-        ym=$$(date +%Y-%m)
-        for off in 0 1 2 3 4 5; do
-          target=$$(date -d "-$${off} month" +%Y-%m 2>/dev/null || echo "$${ym}")
-          url="https://download.db-ip.com/free/dbip-asn-lite-$${target}.mmdb.gz"
-          echo "geoip: trying $${url}"
-          if curl -fsSL --max-time 30 -o /tmp/asn.mmdb.gz "$${url}"; then
-            gunzip -f /tmp/asn.mmdb.gz
-            mv /tmp/asn.mmdb /geoip/asn.mmdb
-            chmod 0644 /geoip/asn.mmdb
-            echo "geoip: $${target} mmdb installed"
-            exit 0
+        fetch_mmdb() {
+          local family="$$1"
+          local out="$$2"
+          if [ -s "$$out" ]; then
+            echo "geoip: $$out already present — skipping"
+            return 0
           fi
-        done
-        echo "geoip: WARNING — could not fetch any db-ip ASN-Lite snapshot." >&2
-        echo "geoip: dashboard will fall back to the hand-curated CIDR table." >&2
-        # Leave a zero-byte file so mitigador does not retry every restart.
-        touch /geoip/asn.mmdb
+          for off in 0 1 2 3 4 5; do
+            target=$$(date -d "-$${off} month" +%Y-%m 2>/dev/null || date +%Y-%m)
+            url="https://download.db-ip.com/free/dbip-$${family}-lite-$${target}.mmdb.gz"
+            echo "geoip: trying $${url}"
+            if curl -fsSL --max-time 30 -o "/tmp/$${family}.mmdb.gz" "$${url}"; then
+              gunzip -f "/tmp/$${family}.mmdb.gz"
+              mv "/tmp/$${family}.mmdb" "$$out"
+              chmod 0644 "$$out"
+              echo "geoip: $${family} $${target} mmdb installed"
+              return 0
+            fi
+          done
+          echo "geoip: WARNING — could not fetch db-ip $${family}-Lite. Dashboard column will be empty." >&2
+          touch "$$out"
+        }
+        fetch_mmdb asn     /geoip/asn.mmdb
+        fetch_mmdb country /geoip/country.mmdb
       '
     restart: "no"
 

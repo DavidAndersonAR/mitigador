@@ -127,7 +127,19 @@ func serve(rootCtx context.Context, configPath string) error {
 			defer asnDB.Close()
 		}
 	}
-	netOwnerResolver := netowner.New(asnDB)
+	// Optional Country enrichment (GeoLite2-Country or db-ip Country-Lite mmdb).
+	var countryDB *netowner.CountryMMDB
+	if p := cfg.GeoIP.CountryPath; p != "" {
+		db, err := netowner.OpenCountryMMDB(p)
+		if err != nil {
+			slog.Warn("geoip: Country mmdb not loaded — country chips will be omitted", "path", p, "err", err)
+		} else {
+			slog.Info("geoip: Country mmdb loaded", "path", p)
+			countryDB = db
+			defer countryDB.Close()
+		}
+	}
+	netOwnerResolver := netowner.New(asnDB, countryDB)
 
 	// 11) Detect engine.
 	engine := detect.NewEngine(store, catalog, attackEvents)

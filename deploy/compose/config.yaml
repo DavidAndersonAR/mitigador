@@ -49,3 +49,4 @@ log:
 # geoip-init service in compose.yml will fetch a free copy if missing.
 geoip:
   asn_path: "/etc/mitigador/geoip/asn.mmdb"
+  country_path: "/etc/mitigador/geoip/country.mmdb"

@@ -14,10 +14,13 @@ type Config struct {
 	GeoIP    GeoIP    `mapstructure:"geoip"`
 }
 
-// GeoIP optionally enriches dashboard rows with AS organization names.
-// Empty ASNPath = feature disabled; the CIDR fallback table still works.
+// GeoIP optionally enriches dashboard rows with AS organization names and
+// country codes. All fields are independent — set only the ones you have.
+// Empty ASNPath = ASN feature falls back to the hand-curated CIDR table.
+// Empty CountryPath = country chips are omitted from the dashboard.
 type GeoIP struct {
-	ASNPath string `mapstructure:"asn_path"`
+	ASNPath     string `mapstructure:"asn_path"`
+	CountryPath string `mapstructure:"country_path"`
 }
 
 // Postgres holds DB connection settings.
