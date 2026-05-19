@@ -279,20 +279,20 @@ const sankeyOption = computed(() => {
       <NCard size="small" :title="t('analytics.sankey.title')" class="card sankey-card">
         <div v-if="loadingFirst" class="loading"><NSpin /></div>
         <NEmpty v-else-if="!sankeyOption" :description="t('analytics.sankey.empty')" />
-        <VChart v-else :option="sankeyOption" :autoresize="true" theme="dark" class="chart sankey-chart" />
+        <VChart v-else :option="sankeyOption" :autoresize="true" class="chart sankey-chart" />
       </NCard>
 
       <section class="row-2col">
         <NCard size="small" :title="t('analytics.owners.title')" class="card">
           <div v-if="loadingFirst" class="loading"><NSpin /></div>
           <NEmpty v-else-if="!ownerBarOption" :description="t('analytics.owners.empty')" />
-          <VChart v-else :option="ownerBarOption" :autoresize="true" theme="dark" class="chart bar-chart" />
+          <VChart v-else :option="ownerBarOption" :autoresize="true" class="chart bar-chart" />
         </NCard>
 
         <NCard size="small" :title="t('analytics.countries.title')" class="card">
           <div v-if="loadingFirst" class="loading"><NSpin /></div>
           <NEmpty v-else-if="!countryBarOption" :description="t('analytics.countries.empty')" />
-          <VChart v-else :option="countryBarOption" :autoresize="true" theme="dark" class="chart bar-chart" />
+          <VChart v-else :option="countryBarOption" :autoresize="true" class="chart bar-chart" />
         </NCard>
       </section>
 
@@ -300,7 +300,7 @@ const sankeyOption = computed(() => {
         <NCard size="small" :title="t('analytics.proto.title')" class="card">
           <div v-if="loadingFirst" class="loading"><NSpin /></div>
           <NEmpty v-else-if="!protoDonutOption" :description="t('analytics.proto.empty')" />
-          <VChart v-else :option="protoDonutOption" :autoresize="true" theme="dark" class="chart donut-chart" />
+          <VChart v-else :option="protoDonutOption" :autoresize="true" class="chart donut-chart" />
         </NCard>
 
         <NCard size="small" :title="t('analytics.summary.title')" class="card">

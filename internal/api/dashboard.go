@@ -361,32 +361,31 @@ func handleDashboardAnalytics(deps Deps) http.HandlerFunc {
 		}
 
 		// Sankey edges from the recent-flows ring buffer.
+		//
+		// We need a bipartite graph: ECharts sankey rejects cycles, and ISP
+		// traffic naturally produces them (Google→Vivo inbound, Vivo→Google
+		// outbound). The fix is to namespace every source node under "◂ " and
+		// every target under " ▸" so the same organization name becomes two
+		// distinct nodes — one on the left column, one on the right.
 		type edgeKey struct{ src, dst string }
 		edges := map[edgeKey]*dashSankeyEdge{}
+		labelize := func(ip netip.Addr) string {
+			if name := resolveOwner(deps, ip); name != "" {
+				return name
+			}
+			if ip.IsPrivate() || ip.IsLoopback() {
+				return "private"
+			}
+			if iso, _ := resolveCountry(deps, ip); iso != "" {
+				return "country:" + iso
+			}
+			return "unknown"
+		}
 		if deps.RecentFlows != nil {
 			snap := deps.RecentFlows.Snapshot(500)
 			for _, rec := range snap {
-				src := resolveOwner(deps, rec.SrcIP)
-				if src == "" {
-					if rec.SrcIP.IsPrivate() || rec.SrcIP.IsLoopback() {
-						src = "private"
-					} else {
-						src = rec.SrcIP.String()
-					}
-				}
-				dst := resolveOwner(deps, rec.DstIP)
-				if dst == "" {
-					if rec.DstIP.IsPrivate() || rec.DstIP.IsLoopback() {
-						dst = "private"
-					} else if iso, _ := resolveCountry(deps, rec.DstIP); iso != "" {
-						dst = "country:" + iso
-					} else {
-						dst = "other"
-					}
-				}
-				if src == dst {
-					continue
-				}
+				src := "◂ " + labelize(rec.SrcIP)
+				dst := labelize(rec.DstIP) + " ▸"
 				key := edgeKey{src, dst}
 				e, ok := edges[key]
 				if !ok {
