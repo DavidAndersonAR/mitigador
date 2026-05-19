@@ -32,10 +32,10 @@
 - [x] 01-05-PLAN.md — Ingest layer: GoFlow2 UDP listeners (NetFlow v9/IPFIX/sFlow) + Inventory + ChannelProducer + HealthTracker
 - [x] 01-06-PLAN.md — Per-host sharded ring-buffer counters (60s window, /32 only in P1)
 - [x] 01-07-PLAN.md — Detection engine: AttackEvent + Catalog + Classify + Confidence + state machine + 1Hz tick
-- [ ] 01-08-PLAN.md — incident.Store + Recorder (AttackEvent → Postgres) + orphan close on startup
-- [ ] 01-09-PLAN.md — Alert bus + Telegram sender (30/s + 1/s rate limit + 429 retry) + Email sender (go-mail) + pt-BR templates
-- [ ] 01-10-PLAN.md — HTTP API (chi + scs sessions + CSRF) + SSE broker + read endpoints + static SPA handler
-- [ ] 01-11-PLAN.md — Vue 3 + Naive UI dashboard (6 views: login, dashboard, exporters, BGP stub, incident list/detail) + i18n pt-BR/en-US
+- [x] 01-08-PLAN.md — incident.Store + Recorder (AttackEvent → Postgres) + orphan close on startup
+- [x] 01-09-PLAN.md — Alert bus + Telegram sender (30/s + 1/s rate limit + 429 retry) + Email sender (go-mail) + pt-BR templates
+- [x] 01-10-PLAN.md — HTTP API (chi + scs sessions + CSRF) + SSE broker + read endpoints + static SPA handler
+- [x] 01-11-PLAN.md — Vue 3 + Naive UI dashboard (6 views: login, dashboard, exporters, BGP stub, incident list/detail) + i18n pt-BR/en-US
 - [ ] 01-12-PLAN.md — `mitigador serve` integration (errgroup + graceful shutdown) + flowgen + E2E test + operator smoke checkpoint
 **UI hint**: yes
 
