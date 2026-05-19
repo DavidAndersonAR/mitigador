@@ -40,14 +40,24 @@
 **UI hint**: yes
 
 ### Phase 01.1: Flow Analytics — top talkers + per-host charts (INSERTED)
-
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 1
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 01.1 to break down)
+**Goal**: Operador ganha visibilidade contínua de tráfego (top 20 talkers + gráfico stacked-area por host) independente de ataque ativo. Tudo em RAM reutilizando `aggregate.Store` — sem novo storage, sem migration, sem novo SSE topic. Fecha o gap do smoke-test da Phase 1 ("ver o que tava rolando" quando nada ataca).
+**Depends on**: Phase 1
+**Requirements**: CONTEXT.md D-01..D-20 (REQUIREMENTS.md predates this phase — decisions são o requirement set implícito)
+**Success Criteria** (what must be TRUE):
+  1. Operador navega para `/traffic` e vê uma tabela com até 20 hosts ordenada por bps desc, com IP, hostgroup, bps, pps e tag do protocolo dominante (UDP/ICMP/Outros), atualizada a cada 1s.
+  2. Clicando uma linha abre um drawer lateral (NDrawer) com um gráfico stacked-area de 60 segundos para aquele host, com toggle BPS↔PPS preservando o contexto.
+  3. Polling pausa quando a aba/janela perde foco (`document.visibilityState`) e retoma quando volta — sem requests em background.
+  4. Mobile (< 640px): tabela vira card stack vertical; drawer vira fullscreen.
+  5. Endpoints `/api/traffic/top20` e `/api/traffic/host/{ip}` são autenticados (curl sem cookie → 401), validam input `{ip}` (400 em IP malformado), retornam 404 sem distinguir "nunca visto" vs "stale" (anti-enumeration).
+  6. pt-BR + en-US têm cobertura completa: zero string hardcoded.
+  7. Nenhuma persistência nova, nenhuma migration, nenhum SSE topic novo — PERS-03 intacto.
+**Plans**: 5 plans
+- [ ] 01.1-01-PLAN.md — aggregate.Store.Top(now, n) helper + TopEntry struct + unit tests (ordering, empty, dominant proto, tie-break, race)
+- [ ] 01.1-02-PLAN.md — FE foundation: install uplot, register /traffic route, sidebar entry, i18n keys, typed api/traffic.ts wrapper, placeholder view
+- [ ] 01.1-03-PLAN.md — Backend: /api/traffic/top20 + /api/traffic/host/{ip} handlers, extend api.Deps with Store+Catalog, wire serve.go, threat model + tests
+- [ ] 01.1-04-PLAN.md — HostTrafficChart.vue: uPlot stacked-area wrapper (3 series), bps/pps prop, dark theme, destroy on unmount
+- [ ] 01.1-05-PLAN.md — TrafficView.vue: top-20 table + drawer + polling (1s) + visibility pause + mobile breakpoint + operator smoke checkpoint
+**UI hint**: yes
 
 ### Phase 2: BGP Mitigation with Safety Rails
 **Goal**: Operador habilita mitigação BGP RTBH com todas as barreiras de segurança (whitelist, dry-run default, manual-approve via Telegram inline button, panic button, TTL obrigatório, origin check, audit log imutável). Mitigação real fica disponível mas falsos-positivos catastróficos são estruturalmente impossíveis.
@@ -132,4 +142,4 @@ Documentado em REQUIREMENTS.md sob "v2 Requirements":
 - Webhooks genéricos (Slack/Discord/PagerDuty/SIEM)
 
 ---
-*Last updated: 2026-05-17 (initial roadmap)*
+*Last updated: 2026-05-17 (initial roadmap); 2026-05-19 (Phase 01.1 planned — 5 plans inserted)*
