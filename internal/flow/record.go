@@ -13,10 +13,11 @@ import (
 type Proto uint8
 
 const (
-	ProtoOther Proto = 0
-	ProtoICMP  Proto = 1
-	ProtoTCP   Proto = 6
-	ProtoUDP   Proto = 17
+	ProtoOther  Proto = 0
+	ProtoICMP   Proto = 1
+	ProtoTCP    Proto = 6
+	ProtoUDP    Proto = 17
+	ProtoICMPv6 Proto = 58
 )
 
 // Record is the canonical per-flow record shared by ingest and aggregate.
