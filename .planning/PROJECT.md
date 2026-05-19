@@ -15,31 +15,33 @@ Se tudo mais falhar, o operador precisa receber o alerta e ver a rota de blackho
 
 <!-- Shipped and confirmed valuable. -->
 
-(Ainda nada — projeto greenfield, validar com a operação real do ISP do amigo)
+Validated in Phase 1: Observation Spine (2026-05-19) — pipeline end-to-end (NetFlow v9 → ingest → aggregate → detect → incident → SSE/Telegram/Email) verificado via TestE2E_FlowToIncident + smoke test manual.
+
+- [x] Ingestão de telemetria via **NetFlow v9** (em código; SC-1 Mikrotik real pendente em HUMAN-UAT)
+- [x] Ingestão de telemetria via **IPFIX** (listener wired em UDP/4739)
+- [x] Ingestão de telemetria via **sFlow** (listener wired em UDP/6343)
+- [x] Detecção de ataques **volumétricos UDP flood** (per-host, state machine 1Hz)
+- [x] Detecção de ataques **volumétricos ICMP flood** (per-host)
+- [x] **Alertas Telegram** com detalhes do ataque (pt-BR, MarkdownV2, dual token bucket, 429 retry; SC-2 bot real pendente em HUMAN-UAT)
+- [x] **Alertas por e-mail** com sumário de incidente (wneessen/go-mail, STARTTLS/TLS/plain)
+- [x] **Dashboard web em tempo real** com ataques ativos e histórico (Vue 3 + SSE; locale toggle + dark theme pendentes em HUMAN-UAT visual check)
+- [x] Configuração de **thresholds por prefixo/cliente** (hostgroups + thresholds tables, longest-prefix-match)
+- [x] **Histórico de ataques** persistido em Postgres para análise post-mortem
+- [x] **Workaround Mikrotik NetFlow v9 byte-order** (sample_rate_override por exporter em código)
 
 ### Active
 
 <!-- Hipóteses até estarem em produção. -->
 
-- [ ] Ingestão de telemetria via **NetFlow v9** (Mikrotik primary, universal)
-- [ ] Ingestão de telemetria via **IPFIX** (equipamentos modernos)
-- [ ] Ingestão de telemetria via **sFlow** (Juniper/Cisco onde disponível — Mikrotik não suporta)
-- [ ] Detecção de ataques **volumétricos UDP flood** (per-host)
-- [ ] Detecção de ataques **volumétricos ICMP flood** (per-host)
-- [ ] **Detecção de carpet-bombing** via agregação multi-resolução (/32, /28, /24, /22) — padrão dominante 2024-2026
-- [ ] Mitigação automática via **BGP RTBH** (blackhole de /32 atacado — universal, inclusive Mikrotik)
-- [ ] Mitigação automática via **BGP Flowspec** (regras granulares — apenas peers Juniper/Cisco; Mikrotik não suporta)
-- [ ] **Detecção de vendor por peer** + escolha automática RTBH vs Flowspec
-- [ ] **Alertas Telegram** com detalhes do ataque (IP alvo, vetor, taxa)
-- [ ] **Alertas por e-mail** com sumário de incidente
-- [ ] **Dashboard web em tempo real** com ataques ativos e histórico
-- [ ] **Modo multi-tenant**: instalação separada para ISP e cliente corporativo, com configurações independentes
-- [ ] Suporte a roteadores **Mikrotik, Juniper e Cisco** (sessão BGP de mitigação)
-- [ ] Configuração de **thresholds por prefixo/cliente** (não thresholds estáticos globais)
-- [ ] **Histórico de ataques** persistido para análise post-mortem
-- [ ] **Workaround Mikrotik NetFlow v9 byte-order** (sampling rate hard-coded no coletor)
-- [ ] **Panic button** operacional (web + Telegram + CLI standalone) para zerar mitigações em emergência
-- [ ] **Modo dry-run** e **modo manual-approve via Telegram inline buttons** como defaults antes de auto-mitigation
+- [ ] **Flow analytics** — top talkers + gráficos de tráfego por host independente de ataque (Phase 1.1 — adicionada 2026-05-19)
+- [ ] **Detecção de carpet-bombing** via agregação multi-resolução (/32, /28, /24, /22) — padrão dominante 2024-2026 (Phase 3)
+- [ ] Mitigação automática via **BGP RTBH** (blackhole de /32 atacado — universal, inclusive Mikrotik) (Phase 2)
+- [ ] Mitigação automática via **BGP Flowspec** (regras granulares — apenas peers Juniper/Cisco; Mikrotik não suporta) (Phase 3)
+- [ ] **Detecção de vendor por peer** + escolha automática RTBH vs Flowspec (Phase 2/3)
+- [ ] **Modo multi-tenant**: instalação separada para ISP e cliente corporativo, com configurações independentes (Phase 4)
+- [ ] Suporte a roteadores **Mikrotik, Juniper e Cisco** (sessão BGP de mitigação) (Phase 2)
+- [ ] **Panic button** operacional (web + Telegram + CLI standalone) para zerar mitigações em emergência (Phase 2)
+- [ ] **Modo dry-run** e **modo manual-approve via Telegram inline buttons** como defaults antes de auto-mitigation (Phase 2)
 
 ### Out of Scope
 
@@ -108,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-17 after research synthesis (stack decision, vendor scope, carpet-bombing P1)*
+*Last updated: 2026-05-19 — Phase 1 (Observation Spine) complete; Phase 1.1 (flow analytics) inserted next*

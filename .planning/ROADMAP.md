@@ -36,7 +36,7 @@
 - [x] 01-09-PLAN.md — Alert bus + Telegram sender (30/s + 1/s rate limit + 429 retry) + Email sender (go-mail) + pt-BR templates
 - [x] 01-10-PLAN.md — HTTP API (chi + scs sessions + CSRF) + SSE broker + read endpoints + static SPA handler
 - [x] 01-11-PLAN.md — Vue 3 + Naive UI dashboard (6 views: login, dashboard, exporters, BGP stub, incident list/detail) + i18n pt-BR/en-US
-- [ ] 01-12-PLAN.md — `mitigador serve` integration (errgroup + graceful shutdown) + flowgen + E2E test + operator smoke checkpoint
+- [x] 01-12-PLAN.md — `mitigador serve` integration (errgroup + graceful shutdown) + flowgen + E2E test + operator smoke checkpoint
 **UI hint**: yes
 
 ### Phase 2: BGP Mitigation with Safety Rails

@@ -160,7 +160,7 @@ Mapeamento requirement → fase. Preenchido durante criação do roadmap em 2026
 | TELE-04 | Phase 1 | Pending |
 | TELE-05 | Phase 1 | Pending |
 | TELE-06 | Phase 1 | Pending |
-| TELE-07 | Phase 1 | Pending |
+| TELE-07 | Phase 3 | Pending |
 | DETE-01 | Phase 1 | Pending |
 | DETE-02 | Phase 1 | Pending |
 | DETE-03 | Phase 1 | Pending |
