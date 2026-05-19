@@ -99,24 +99,31 @@ func TestSM_NonViolatingStreak_ResetByViolation(t *testing.T) {
 	t8 := now.Add(8 * time.Second)
 	t9 := now.Add(9 * time.Second)
 	t10 := now.Add(10 * time.Second)
+	t11 := now.Add(11 * time.Second)
 
-	// 2 non-violating ticks.
+	// 2 non-violating ticks (streak = 2).
 	sm.Step(testKey, makeInput(t6, false, 0, 10, 1000), testTh)
 	sm.Step(testKey, makeInput(t7, false, 0, 10, 1000), testTh)
 
-	// 1 violating — resets the no-violation streak.
+	// 1 violating — resets the no-violation streak to 0.
 	sm.Step(testKey, makeInput(t8, true, 1, 200, 20_000), testTh)
 
-	// 2 more non-violating — streak count is 2, grace=3 → no ENDED yet.
+	// 1st non-violating after reset (streak = 1), grace=3 → no ENDED.
 	ev9 := sm.Step(testKey, makeInput(t9, false, 0, 10, 1000), testTh)
 	if ev9 != nil && ev9.State == detect.StateEnded {
-		t.Error("expected no ENDED after 2 non-violating (streak reset after violation)")
+		t.Error("expected no ENDED after 1 non-violating tick (streak reset after violation)")
 	}
 
-	// 3rd consecutive non-violating → ENDED.
+	// 2nd non-violating after reset (streak = 2), grace=3 → no ENDED yet.
 	ev10 := sm.Step(testKey, makeInput(t10, false, 0, 10, 1000), testTh)
-	if ev10 == nil || ev10.State != detect.StateEnded {
-		t.Errorf("expected StateEnded after 3 consecutive non-violating ticks, got %v", ev10)
+	if ev10 != nil && ev10.State == detect.StateEnded {
+		t.Error("expected no ENDED after 2 non-violating ticks (need 3 for grace)")
+	}
+
+	// 3rd consecutive non-violating after reset (streak = 3 >= grace=3) → ENDED.
+	ev11 := sm.Step(testKey, makeInput(t11, false, 0, 10, 1000), testTh)
+	if ev11 == nil || ev11.State != detect.StateEnded {
+		t.Errorf("expected StateEnded after 3 consecutive non-violating ticks, got %v", ev11)
 	}
 }
 
@@ -148,13 +155,12 @@ func TestSM_UpdateEmitted_AfterFiveMinutes(t *testing.T) {
 	sm := detect.NewStateMachine()
 	now := time.Unix(5000, 0)
 
-	// Reach ACTIVE with pps=200.
+	// Reach ACTIVE with pps=200. startedAt will be now+5s (the 5th violating tick).
 	for i := 1; i <= 5; i++ {
 		sm.Step(testKey, makeInput(now.Add(time.Duration(i)*time.Second), true, i, 200, 20_000), testTh)
 	}
-
-	// Tick at 5min+1s without peak doubling → expect UPDATED.
-	t5m := now.Add(5*time.Minute + time.Second)
+	// startedAt = now+5s. Check at now+5s + 5min + 1s = now + 5min + 6s.
+	t5m := now.Add(5*time.Minute + 6*time.Second)
 	in := makeInput(t5m, true, 301, 210, 21_000) // pps=210, not double of 200
 	ev := sm.Step(testKey, in, testTh)
 	if ev == nil || ev.State != detect.StateUpdated {
