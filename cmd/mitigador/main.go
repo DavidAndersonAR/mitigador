@@ -28,7 +28,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&configPath, "config", config.DefaultPath, "path to mitigador config.yaml")
 	cmd.AddCommand(
 		newVersionCmd(),
-		newServeStubCmd(),
+		newServeCmd(&configPath),
 		newConfigCmd(&configPath),
 		newUserCmd(&configPath),
 	)
@@ -41,16 +41,6 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print the version",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println(version.String())
-		},
-	}
-}
-
-func newServeStubCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "serve",
-		Short: "Start the Mitigador daemon (HTTP API + UDP listeners + detection)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("serve: not yet implemented (see plan 01-12)")
 		},
 	}
 }

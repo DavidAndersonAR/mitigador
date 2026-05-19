@@ -1,0 +1,109 @@
+# domain.yaml — Mitigador domain configuration
+#
+# Apply with: mitigador --config /etc/mitigador/config.yaml config sync --file domain.yaml
+#
+# This file defines exporters (routers that send flows), hostgroups (customer CIDRs
+# to protect), thresholds (detection rules per vector), and alert channels.
+# Changes are applied incrementally — existing rows are updated, new rows are added.
+# Removed entries are NOT deleted automatically (requires explicit DB cleanup).
+#
+# Mikrotik notes:
+#   - NetFlow v9 or IPFIX only — Mikrotik RouterOS has no sFlow support.
+#   - BGP Flowspec is NOT supported by Mikrotik RouterOS v7. Use RTBH instead.
+#   - Set sample_rate_override to the router's actual sampling rate to bypass
+#     the Mikrotik byte-order bug in SamplingRate field encoding.
+#
+# Juniper / Cisco notes:
+#   - sFlow v5 is supported (set type: sflow).
+#   - BGP Flowspec is supported (Phase 2 feature).
+#   - sample_rate_override: 0 means use the router-announced rate.
+
+exporters:
+  # Mikrotik border router — NetFlow v9 exporter.
+  # Ensure "ip traffic-flow" is enabled on the router and target is this Mitigador host:2055.
+  - source_ip: "10.0.0.1"
+    type: "netflow"
+    sample_rate_override: 1000  # Router samples 1 in 1000 packets; override avoids Mikrotik byte-order bug
+    description: "Mikrotik border router BR1"
+
+  # Cisco/Juniper router — IPFIX exporter.
+  # sample_rate_override: 0 means trust the router-announced rate.
+  - source_ip: "10.0.0.2"
+    type: "ipfix"
+    sample_rate_override: 0
+    description: "Cisco ASR9k border router BR2"
+
+  # Juniper router — sFlow v5 exporter (Juniper/Cisco only).
+  - source_ip: "10.0.0.3"
+    type: "sflow"
+    sample_rate_override: 0
+    description: "Juniper MX480 peer router BR3"
+
+hostgroups:
+  # Corporate customers on a single /24.
+  - name: "corporate"
+    prefix: "192.0.2.0/24"
+    description: "Corporate LAN customers"
+
+  # Residential customers — broader /20 block.
+  - name: "residential"
+    prefix: "198.51.100.0/22"
+    description: "Residential broadband customers"
+
+  # Transit/upstream — tracked but not mitigated (detection only, lower thresholds).
+  - name: "transit"
+    prefix: "203.0.113.0/24"
+    description: "Transit network — upstream IPs"
+
+thresholds:
+  # UDP flood detection for corporate LAN.
+  # Trigger: average pps > 100k OR bps > 800 Mbps sustained over 5 seconds.
+  # Grace: 60 consecutive non-violating seconds before incident is closed.
+  - hostgroup: "corporate"
+    vector: "udp_flood"
+    pps: 100000           # packets per second (post sample-rate expansion)
+    bps: 800000000        # bits per second (post sample-rate expansion)
+    min_window_sec: 5     # minimum consecutive violating seconds before alerting
+    grace_sec: 60         # consecutive non-violating seconds before closing
+
+  # ICMP flood detection for corporate LAN (typically lower thresholds).
+  - hostgroup: "corporate"
+    vector: "icmp_flood"
+    pps: 50000
+    bps: 400000000
+    min_window_sec: 5
+    grace_sec: 60
+
+  # UDP flood detection for residential block (higher threshold — more traffic).
+  - hostgroup: "residential"
+    vector: "udp_flood"
+    pps: 500000
+    bps: 4000000000
+    min_window_sec: 5
+    grace_sec: 120
+
+  # ICMP flood for residential.
+  - hostgroup: "residential"
+    vector: "icmp_flood"
+    pps: 200000
+    bps: 1600000000
+    min_window_sec: 5
+    grace_sec: 120
+
+alert_channels:
+  # Telegram bot (bot_token and allowed_chat_ids configured in config.yaml).
+  - type: "telegram"
+    target: "123456789"   # CHANGE_ME: your Telegram chat ID (get via @userinfobot)
+    enabled: true
+
+  # Email (SMTP settings in config.yaml).
+  - type: "email"
+    target: "ops@example.com"   # CHANGE_ME: your NOC email address
+    enabled: true
+
+whitelist:
+  # Infrastructure IPs — never raise incidents for traffic to/from these.
+  - prefix: "10.0.0.0/24"
+    reason: "internal infrastructure — router loopbacks and management"
+  - prefix: "100.64.0.0/10"
+    reason: "RFC 6598 shared address space — carrier-grade NAT"
