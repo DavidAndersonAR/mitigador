@@ -17,7 +17,7 @@
 ### Phase 1: Observation Spine
 **Goal**: Operador do ISP ganha visibilidade completa em tempo real de ataques volumétricos (UDP/ICMP flood per-host) através de dashboard web + alertas Telegram/email, sem qualquer ação BGP. É o "observação pura" que prova que a detecção funciona antes de qualquer risco de mitigação.
 **Depends on**: Nothing (first phase)
-**Requirements**: TELE-01, TELE-02, TELE-03, TELE-04, TELE-05, TELE-06, TELE-07, DETE-01, DETE-02, DETE-03, DETE-05, DETE-06, ALER-01, ALER-02, ALER-05, ALER-06, ALER-08, DASH-01, DASH-02, DASH-04, DASH-05, DASH-09, PERS-01, PERS-03, PERS-04
+**Requirements**: TELE-01, TELE-02, TELE-03, TELE-04, TELE-05, TELE-06, DETE-01, DETE-02, DETE-03, DETE-05, DETE-06, ALER-01, ALER-02, ALER-05, ALER-06, ALER-08, DASH-01, DASH-02, DASH-04, DASH-05, DASH-09, PERS-01, PERS-03, PERS-04
 **Success Criteria** (what must be TRUE):
   1. Operador configura um roteador Mikrotik para exportar NetFlow v9 e vê flows chegando no dashboard em < 60s, com PPS/BPS corretos (apesar do bug de byte-order Mikrotik).
   2. Quando um IP cliente sofre ataque UDP flood ou ICMP flood acima do threshold do hostgroup, operador recebe alerta Telegram em pt-BR com IP alvo, vetor, taxa pps/bps e duração — **sem qualquer anúncio BGP**.
@@ -55,7 +55,7 @@
 ### Phase 3: Carpet-Bombing, Flowspec & Operator UX
 **Goal**: Operador detecta ataques de carpet-bombing (padrão dominante 2024-2026) via agregação multi-resolução /28/24/22, usa Flowspec automaticamente nos peers Juniper/Cisco (fallback RTBH em Mikrotik), e configura tudo pela UI (hostgroups, thresholds, peers, alert channels, whitelist). Deploy multi-tenant via systemd instantiated units com templates BR pré-carregados.
 **Depends on**: Phase 2
-**Requirements**: DETE-04, DETE-07, MITI-03, MITI-04, ALER-07, DASH-03, DASH-06, DASH-07, DASH-10, MTEN-01, MTEN-02, MTEN-03, MTEN-04, MTEN-05
+**Requirements**: TELE-07, DETE-04, DETE-07, MITI-03, MITI-04, ALER-07, DASH-03, DASH-06, DASH-07, DASH-10, MTEN-01, MTEN-02, MTEN-03, MTEN-04, MTEN-05
 **Success Criteria** (what must be TRUE):
   1. Quando atacante distribui 12 Mbps × 1000 IPs num /22 cliente (carpet-bombing) sem nenhum /32 individual triggar, sistema detecta via agregação em /28/24/22 e envia **uma única notificação agregada** ("12 IPs em /24 X.X.X.0/24 atacados, 8 Gbps UDP/53") em vez de N notificações individuais.
   2. Sistema detecta vendor de cada peer BGP no startup (capability detection) e quando dispara mitigação contra carpet-bombing num peer Juniper/Cisco, anuncia regra **Flowspec granular**; quando o peer é Mikrotik, faz **fallback automático para RTBH** sem operador intervir.
@@ -91,14 +91,14 @@ Total v1 requirements: **65**
 Mapped to phases: **65** (100%)
 Unmapped: **0**
 
-### Phase 1 (25 requirements)
-TELE-01, TELE-02, TELE-03, TELE-04, TELE-05, TELE-06, TELE-07, DETE-01, DETE-02, DETE-03, DETE-05, DETE-06, ALER-01, ALER-02, ALER-05, ALER-06, ALER-08, DASH-01, DASH-02, DASH-04, DASH-05, DASH-09, PERS-01, PERS-03, PERS-04
+### Phase 1 (24 requirements)
+TELE-01, TELE-02, TELE-03, TELE-04, TELE-05, TELE-06, DETE-01, DETE-02, DETE-03, DETE-05, DETE-06, ALER-01, ALER-02, ALER-05, ALER-06, ALER-08, DASH-01, DASH-02, DASH-04, DASH-05, DASH-09, PERS-01, PERS-03, PERS-04
 
 ### Phase 2 (20 requirements)
 MITI-01, MITI-02, MITI-05, MITI-06, MITI-07, MITI-08, MITI-09, MITI-10, SAFE-01, SAFE-02, SAFE-03, SAFE-04, SAFE-05, SAFE-06, SAFE-07, SAFE-08, ALER-03, ALER-04, DASH-08, PERS-02
 
-### Phase 3 (14 requirements)
-DETE-04, DETE-07, MITI-03, MITI-04, ALER-07, DASH-03, DASH-06, DASH-07, DASH-10, MTEN-01, MTEN-02, MTEN-03, MTEN-04, MTEN-05
+### Phase 3 (15 requirements)
+TELE-07, DETE-04, DETE-07, MITI-03, MITI-04, ALER-07, DASH-03, DASH-06, DASH-07, DASH-10, MTEN-01, MTEN-02, MTEN-03, MTEN-04, MTEN-05
 
 ### Phase 4 (6 requirements)
 OPER-01, OPER-02, OPER-03, OPER-04, OPER-05, OPER-06
